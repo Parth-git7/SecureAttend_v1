@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>SecureAttend Google Login Test</title>
+
+    <!-- Google Identity Services -->
+    <script
+        src="https://accounts.google.com/gsi/client"
+        async
+        defer>
+    </script>
+</head>
+
+<body>
+
+    <h1>SecureAttend</h1>
+
+    <h2>Google Login Test</h2>
+
+    <!-- Google Sign-In -->
+    <div
+        id="g_id_onload"
+        data-client_id="422630917805-8gmd6hgqqql06sgritbn3p0ofd7htoeg.apps.googleusercontent.com"
+        data-callback="handleGoogleLogin">
+    </div>
+
+    <div
+        class="g_id_signin"
+        data-type="standard"
+        data-size="large"
+        data-theme="outline"
+        data-text="continue_with"
+        data-shape="rectangular">
+    </div>
+
+    <p id="message"></p>
+
+    <script>
+        async function handleGoogleLogin(response) {
+
+            console.log("Google response received");
+
+            const credential = response.credential;
+
+            try {
+                const result = await fetch(
+                    "/api/auth/google",
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({
+                            credential: credential
+                        })
+                    }
+                );
+
+                const data = await result.json();
+
+                console.log("Backend response:", data);
+
+                if (!result.ok) {
+                    document.getElementById("message").textContent =
+                        data.message;
+
+                    return;
+                }
+
+                localStorage.setItem(
+                    "secureAttendToken",
+                    data.token
+                );
+
+                localStorage.setItem(
+                    "secureAttendUser",
+                    JSON.stringify(data.user)
+                );
+
+                document.getElementById("message").textContent =
+                    "Google login successful!";
+
+                console.log("SecureAttend JWT:", data.token);
+                console.log("User:", data.user);
+
+            } catch (error) {
+
+                console.error("Google login error:", error);
+
+                document.getElementById("message").textContent =
+                    "Login failed.";
+            }
+        }
+    </script>
+
+</body>
+</html>

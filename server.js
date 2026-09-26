@@ -1,9 +1,16 @@
 require("dotenv").config();
 
+const authRoutes = require("./routes/auth");
+const bcrypt = require("bcrypt");
 const express = require("express");
 const mongoose = require("mongoose");
 
 const app = express();
+
+app.use(express.json());
+app.use(express.static("public"));
+app.use("/api/auth", authRoutes);
+
 
 // mongo db connection here 
 mongoose.connect(process.env.MONGO_URI)
