@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>SecureAttend Teacher</title>
+
+    <link rel="stylesheet" href="css/teacher.css">
+</head>
+
+<body>
+
+<div class="container">
+
+    <!-- ================= LOGIN ================= -->
+
+    <div id="login-section">
+
+        <h2>SecureAttend Teacher Login</h2>
+
+        <div
+            id="login-error"
+            class="message error"
+            style="display: none;">
+        </div>
+
+        <p>
+            Please sign in with your Chitkara Google account.
+        </p>
+
+        <!-- Google Identity Services -->
+
+        <div
+            id="g_id_onload"
+            data-client_id="422630917805-8gmd6hgqqql06sgritbn3p0ofd7htoeg.apps.googleusercontent.com"
+            data-context="signin"
+            data-ux_mode="popup"
+            data-callback="handleGoogleCredential"
+            data-auto_prompt="false">
+        </div>
+
+        <div
+            class="g_id_signin"
+            data-type="standard"
+            data-shape="rectangular"
+            data-theme="outline"
+            data-text="signin_with"
+            data-size="large"
+            data-logo_alignment="left">
+        </div>
+
+    </div>
+
+
+    <!-- ================= DASHBOARD ================= -->
+
+    <div id="dashboard-section" style="display: none;">
+
+        <!-- HEADER -->
+
+        <div class="header">
+
+            <div>
+
+                <h2>
+                    SecureAttend Teacher Dashboard
+                </h2>
+
+                <p>
+                    Logged in as:
+
+                    <strong id="current-teacher-name"></strong>
+
+                    (
+                    <span id="current-teacher-email"></span>
+                    )
+
+                    -
+
+                    <strong id="current-teacher-role"></strong>
+                </p>
+
+            </div>
+
+            <button
+                id="logout-btn"
+                class="btn-danger">
+                Logout
+            </button>
+
+        </div>
+
+
+        <!-- ================= ATTENDANCE ================= -->
+
+        <div class="dashboard-module">
+
+            <h3>
+                Take Attendance
+            </h3>
+
+            <div
+                id="attendance-message"
+                class="message">
+            </div>
+
+
+            <form id="start-attendance-form">
+
+                <!-- ACADEMIC PERIOD -->
+
+                <div class="form-group">
+
+                    <label for="academic-period">
+                        Academic Period
+                    </label>
+
+                    <select
+                        id="academic-period"
+                        required>
+
+                        <option value="">
+                            Select Academic Period
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+                <!-- GROUP -->
+
+                <div class="form-group">
+
+                    <label for="group-select">
+                        Group
+                    </label>
+
+                    <select
+                        id="group-select"
+                        required
+                        disabled>
+
+                        <option value="">
+                            Select Group
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+                <!-- SUBJECT -->
+
+                <div class="form-group">
+
+                    <label for="subject-select">
+                        Subject
+                    </label>
+
+                    <select
+                        id="subject-select"
+                        required
+                        disabled>
+
+                        <option value="">
+                            Select Subject
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+                <button type="submit">
+                    Start Attendance
+                </button>
+
+            </form>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- GOOGLE IDENTITY SERVICES -->
+
+<script
+    src="https://accounts.google.com/gsi/client"
+    async
+    defer>
+</script>
+
+
+<!-- TEACHER LOGIC -->
+
+<script src="js/teacher.js"></script>
+
+</body>
+</html>

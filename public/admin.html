@@ -3,20 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>SecureAttend Admin</title>
+
     <link rel="stylesheet" href="css/admin.css">
 </head>
+
 <body>
 
 <div class="container">
-    
-    <!-- LOGIN SECTION -->
+
+    <!-- ================= LOGIN ================= -->
+
     <div id="login-section">
+
         <h2>SecureAttend Admin Login</h2>
-        <div id="login-error" class="message error" style="display: none;"></div>
-        <p>Please sign in with your administrator Google account.</p>
-        
-        <!-- Google Identity Services Setup -->
+
+        <div id="login-error"
+             class="message error"
+             style="display: none;">
+        </div>
+
+        <p>
+            Please sign in with your administrator Google account.
+        </p>
+
+        <!-- Google Identity Services -->
+
         <div id="g_id_onload"
              data-client_id="422630917805-8gmd6hgqqql06sgritbn3p0ofd7htoeg.apps.googleusercontent.com"
              data-context="signin"
@@ -33,78 +46,162 @@
              data-size="large"
              data-logo_alignment="left">
         </div>
+
     </div>
 
-    <!-- DASHBOARD SECTION -->
+
+    <!-- ================= DASHBOARD ================= -->
+
     <div id="dashboard-section">
+
+        <!-- HEADER -->
+
         <div class="header">
+
             <div>
-                <h2>SecureAttend Admin Dashboard</h2>
-                <p>Logged in as: <strong id="current-admin-name"></strong> (<span id="current-admin-email"></span>) - <strong id="current-admin-role"></strong></p>
+
+                <h2>
+                    SecureAttend Admin Dashboard
+                </h2>
+
+                <p>
+                    Logged in as:
+
+                    <strong id="current-admin-name"></strong>
+
+                    (
+                    <span id="current-admin-email"></span>
+                    )
+
+                    -
+
+                    <strong id="current-admin-role"></strong>
+                </p>
+
             </div>
-            <button id="logout-btn" class="btn-danger">Logout</button>
+
+            <button
+                id="logout-btn"
+                class="btn-danger">
+                Logout
+            </button>
+
         </div>
 
-        <!-- MODULE: Create User -->
+
+        <!-- ================= CREATE USER ================= -->
+
         <div class="dashboard-module">
-            <h3>User Management: Create Account</h3>
-            <div id="create-user-message" class="message"></div>
-            
+
+            <h3>
+                User Management: Create Account
+            </h3>
+
+            <div
+                id="create-user-message"
+                class="message">
+            </div>
+
             <form id="create-user-form">
 
+                <!-- NAME -->
+
                 <div class="form-group">
-                    <label for="new-name">Name</label>
+
+                    <label for="new-name">
+                        Name
+                    </label>
+
                     <input
                         type="text"
                         id="new-name"
                         placeholder="Enter full name"
                         required
                     >
+
                 </div>
 
+
+                <!-- EMAIL -->
+
                 <div class="form-group">
-                    <label for="new-email">Email</label>
+
+                    <label for="new-email">
+                        Email
+                    </label>
+
                     <input
                         type="email"
                         id="new-email"
-                        placeholder="Enter email"
+                        placeholder="Enter Chitkara email"
                         required
                     >
+
                 </div>
 
-                <div class="form-group">
-                    <label for="new-role">Role</label>
 
-                    <select id="new-role" required>
-                        <option value="">Select role</option>
-                        <option value="STUDENT">Student</option>
-                        <option value="TEACHER">Teacher</option>
+                <!-- ROLE -->
+
+                <div class="form-group">
+
+                    <label for="new-role">
+                        Role
+                    </label>
+
+                    <select
+                        id="new-role"
+                        required>
+
+                        <option value="">
+                            Select role
+                        </option>
+
+                        <option value="STUDENT">
+                            Student
+                        </option>
+
+                        <option value="TEACHER">
+                            Teacher
+                        </option>
+
                     </select>
+
                 </div>
 
 
                 <!-- STUDENT FIELDS -->
 
-                <div id="student-fields" style="display: none;">
+                <div
+                    id="student-fields"
+                    style="display: none;">
 
                     <div class="form-group">
-                        <label for="new-roll-no">Roll Number</label>
+
+                        <label for="new-roll-no">
+                            Roll Number
+                        </label>
 
                         <input
                             type="text"
                             id="new-roll-no"
                             placeholder="Enter roll number"
                         >
+
                     </div>
 
+
                     <div class="form-group">
-                        <label for="new-batch">Batch</label>
+
+                        <label for="new-batch">
+                            Batch
+                        </label>
 
                         <input
                             type="text"
                             id="new-batch"
                             placeholder="Example: 2024"
                         >
+
                     </div>
 
                 </div>
@@ -112,16 +209,22 @@
 
                 <!-- TEACHER FIELDS -->
 
-                <div id="teacher-fields" style="display: none;">
+                <div
+                    id="teacher-fields"
+                    style="display: none;">
 
                     <div class="form-group">
-                        <label for="new-employee-code">Employee Code</label>
+
+                        <label for="new-employee-code">
+                            Employee Code
+                        </label>
 
                         <input
                             type="text"
                             id="new-employee-code"
                             placeholder="Enter employee code"
                         >
+
                     </div>
 
                 </div>
@@ -133,49 +236,262 @@
 
             </form>
 
-            <div id="create-user-message" class="message"></div>
         </div>
 
-        <!-- MODULE: User List (STUB) -->
+
+
+        <!-- ================= ACADEMIC PERIOD ================= -->
+
         <div class="dashboard-module">
-            <h3>View Users</h3>
-            <div class="future-stub">
-                <strong>BACKEND ENDPOINT REQUIRED:</strong> GET /api/admin/users
-                <p>Once the backend endpoint exists, this table will populate automatically.</p>
+
+            <h3>
+                Academic Period Management
+            </h3>
+
+            <div
+                id="academic-period-message"
+                class="message">
             </div>
+
+            <form id="academic-period-form">
+
+                <div class="form-group">
+
+                    <label for="academic-period-name">
+                        Academic Period Name
+                    </label>
+
+                    <input
+                        type="text"
+                        id="academic-period-name"
+                        placeholder="Example: 2026 Semester 1"
+                        required
+                    >
+
+                </div>
+
+
+                <div class="form-group">
+
+                    <label for="academic-period-start">
+                        Start Date
+                    </label>
+
+                    <input
+                        type="date"
+                        id="academic-period-start"
+                        required
+                    >
+
+                </div>
+
+
+                <div class="form-group">
+
+                    <label for="academic-period-end">
+                        End Date
+                    </label>
+
+                    <input
+                        type="date"
+                        id="academic-period-end"
+                        required
+                    >
+
+                </div>
+
+
+                <button type="submit">
+                    Create Academic Period
+                </button>
+
+            </form>
+
+        </div>
+
+
+
+        <!-- ================= GROUP ================= -->
+
+        <div class="dashboard-module">
+
+            <h3>
+                Group Management
+            </h3>
+
+            <div
+                id="group-message"
+                class="message">
+            </div>
+
+            <form id="group-form">
+
+                <div class="form-group">
+
+                    <label for="group-academic-period">
+                        Academic Period
+                    </label>
+
+                    <select
+                        id="group-academic-period"
+                        required>
+
+                        <option value="">
+                            Select Academic Period
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+                <div class="form-group">
+
+                    <label for="group-name">
+                        Group Name
+                    </label>
+
+                    <input
+                        type="text"
+                        id="group-name"
+                        placeholder="Example: G1"
+                        required
+                    >
+
+                </div>
+
+
+                <button type="submit">
+                    Create Group
+                </button>
+
+            </form>
+
+        </div>
+
+
+
+        <!-- ================= SUBJECT ================= -->
+
+        <div class="dashboard-module">
+
+            <h3>
+                Subject Management
+            </h3>
+
+            <div
+                id="subject-message"
+                class="message">
+            </div>
+
+            <form id="subject-form">
+
+                <div class="form-group">
+
+                    <label for="subject-name">
+                        Subject Name
+                    </label>
+
+                    <input
+                        type="text"
+                        id="subject-name"
+                        placeholder="Example: Data Structures"
+                        required
+                    >
+
+                </div>
+
+
+                <div class="form-group">
+
+                    <label for="subject-code">
+                        Subject Code
+                    </label>
+
+                    <input
+                        type="text"
+                        id="subject-code"
+                        placeholder="Example: CSE201"
+                        required
+                    >
+
+                </div>
+
+
+                <button type="submit">
+                    Create Subject
+                </button>
+
+            </form>
+
+        </div>
+
+
+
+        <!-- ================= USER LIST ================= -->
+
+        <div class="dashboard-module">
+
+            <h3>
+                View Users
+            </h3>
+
+            <div class="future-stub">
+
+                User listing API is not implemented yet.
+
+                <p>
+                    Once
+                    <strong>GET /api/admin/users</strong>
+                    exists, we can populate this table.
+                </p>
+
+            </div>
+
             <table>
+
                 <thead>
+
                     <tr>
                         <th>Name</th>
                         <th>Email</th>
                         <th>Role</th>
                         <th>Created At</th>
                     </tr>
-                </thead>
-                <tbody id="user-list-body">
-                    <tr><td colspan="4">No data loaded.</td></tr>
-                </tbody>
-            </table>
-        </div>
 
-        <!-- MODULE: Group Management (STUB) -->
-        <div class="dashboard-module">
-            <h3>Group & Semester Management</h3>
-            <div class="future-stub">
-                <strong>BACKEND ENDPOINTS REQUIRED:</strong><br>
-                GET /api/admin/groups<br>
-                POST /api/admin/groups<br>
-                POST /api/admin/groups/:id/students
-                <p>Future functionality for managing academic periods and dynamic student-to-group assignments.</p>
-            </div>
+                </thead>
+
+                <tbody id="user-list-body">
+
+                    <tr>
+                        <td colspan="4">
+                            No data loaded.
+                        </td>
+                    </tr>
+
+                </tbody>
+
+            </table>
+
         </div>
 
     </div>
+
 </div>
 
-<!-- Load Google Identity Services script -->
-<script src="https://accounts.google.com/gsi/client" async defer></script>
-<!-- Load our admin logic -->
+
+<!-- GOOGLE -->
+
+<script
+    src="https://accounts.google.com/gsi/client"
+    async
+    defer>
+</script>
+
+
+<!-- ADMIN JS -->
+
 <script src="js/admin.js"></script>
+
 </body>
 </html>

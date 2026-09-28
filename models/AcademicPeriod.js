@@ -1,6 +1,6 @@
 const mongoose = require("mongoose") ;
 
-const academicPeriodSchema = new Mongoose.Schema(
+const academicPeriodSchema = new mongoose.Schema(
     {
         name : {
             type : String,

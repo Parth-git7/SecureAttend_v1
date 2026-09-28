@@ -2,6 +2,7 @@ require("dotenv").config();
 
 const authRoutes = require("./routes/auth");
 const adminRoutes = require("./routes/admin");
+const academicRoutes = require("./routes/academic");
 const bcrypt = require("bcrypt");
 const express = require("express");
 const mongoose = require("mongoose");
@@ -12,6 +13,7 @@ app.use(express.json());
 app.use(express.static("public"));
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes) ;
+app.use("/api/academic", academicRoutes) ;
 
 
 // mongo db connection here 
