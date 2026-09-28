@@ -21,11 +21,18 @@ router.post("/login", async (req, res) => {
         }
 
         // Find user
-        const user = await User.findOne({ email });
+        const normalizedEmail = email.toLowerCase().trim(); 
+        const user = await User.findOne({ email: normalizedEmail });
 
         if (!user) {
             return res.status(401).json({
                 message: "Invalid email or password"
+            });
+        }
+
+        if (!user.passwordHash) {
+            return res.status(401).json({
+                message: "This account does not have password login enabled"
             });
         }
 
@@ -34,6 +41,7 @@ router.post("/login", async (req, res) => {
             password,
             user.passwordHash
         );
+
 
         if (!isMatch) {
             return res.status(401).json({
