@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // STATE
 // ============================================================
 
@@ -8,73 +8,51 @@ let currentUser = JSON.parse(
     localStorage.getItem("sa_admin_user") || "null"
 );
 
+let currentPage = "overview";
+let deleteCallback = null;
 
 // ============================================================
-// INITIALIZATION
+// INIT
 // ============================================================
 
 document.addEventListener("DOMContentLoaded", () => {
-
     checkAuthState();
-
     setupEventListeners();
-
 });
 
 
 // ============================================================
-// AUTHENTICATION STATE
+// AUTH STATE
 // ============================================================
 
 function checkAuthState() {
-
-    if (
-        jwtToken &&
-        currentUser &&
-        currentUser.role === "ADMIN"
-    ) {
-
+    if (jwtToken && currentUser && currentUser.role === "ADMIN") {
         showDashboard();
-
     } else {
-
         showLogin();
-
     }
-
 }
-
 
 function showLogin() {
-
-    document.getElementById("login-section").style.display = "block";
-
-    document.getElementById("dashboard-section").style.display = "none";
-
+    document.getElementById("login-section").classList.add("active");
+    document.getElementById("dashboard-section").classList.remove("active");
 }
 
-
 function showDashboard() {
+    document.getElementById("login-section").classList.remove("active");
+    document.getElementById("dashboard-section").classList.add("active");
 
-    document.getElementById("login-section").style.display = "none";
+    // Populate sidebar profile
+    const initials = currentUser.name
+        ? currentUser.name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)
+        : "A";
+    document.getElementById("admin-avatar-initials").textContent = initials;
+    document.getElementById("sidebar-admin-name").textContent = currentUser.name || "Admin";
+    document.getElementById("topbar-email").textContent = currentUser.email || "";
+    document.getElementById("topbar-subtitle").textContent = `Welcome back, ${currentUser.name || "Admin"}`;
 
-    document.getElementById("dashboard-section").style.display = "block";
-
-
-    document.getElementById("current-admin-name").textContent =
-        currentUser.name;
-
-    document.getElementById("current-admin-email").textContent =
-        currentUser.email;
-
-    document.getElementById("current-admin-role").textContent =
-        currentUser.role;
-
-
-    // Load academic periods for Group creation
-
-    loadAcademicPeriodsForGroup();
-
+    navigateTo("overview");
+    loadDropdowns();
 }
 
 
@@ -83,72 +61,28 @@ function showDashboard() {
 // ============================================================
 
 async function handleGoogleCredential(response) {
-
     try {
-
         const res = await fetch("/api/auth/google", {
-
             method: "POST",
-
-            headers: {
-                "Content-Type": "application/json"
-            },
-
-            body: JSON.stringify({
-                credential: response.credential
-            })
-
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ credential: response.credential })
         });
-
-
         const data = await res.json();
 
-
-        if (!res.ok) {
-
-            throw new Error(
-                data.message || "Authentication failed"
-            );
-
-        }
-
-
-        // Backend role check
-
-        if (data.user.role !== "ADMIN") {
-
-            throw new Error(
-                "Access denied. Admin privileges required."
-            );
-
-        }
-
+        if (!res.ok) throw new Error(data.message || "Authentication failed");
+        if (data.user.role !== "ADMIN") throw new Error("Access denied. Admin privileges required.");
 
         jwtToken = data.token;
-
         currentUser = data.user;
-
-
-        localStorage.setItem(
-            "sa_admin_token",
-            jwtToken
-        );
-
-        localStorage.setItem(
-            "sa_admin_user",
-            JSON.stringify(currentUser)
-        );
-
-
+        localStorage.setItem("sa_admin_token", jwtToken);
+        localStorage.setItem("sa_admin_user", JSON.stringify(currentUser));
         checkAuthState();
 
-
     } catch (error) {
-
-        showLoginError(error.message);
-
+        const el = document.getElementById("login-error");
+        el.textContent = error.message;
+        el.style.display = "block";
     }
-
 }
 
 
@@ -157,352 +91,587 @@ async function handleGoogleCredential(response) {
 // ============================================================
 
 function logout() {
-
     localStorage.removeItem("sa_admin_token");
-
     localStorage.removeItem("sa_admin_user");
-
     jwtToken = null;
-
     currentUser = null;
-
     checkAuthState();
-
 }
 
 
 // ============================================================
-// CREATE USER
+// NAVIGATION
 // ============================================================
 
-async function handleCreateUser(event) {
+function navigateTo(page) {
+    currentPage = page;
 
-    event.preventDefault();
+    // Update sidebar items
+    document.querySelectorAll(".nav-item").forEach(el => {
+        el.classList.toggle("active", el.dataset.page === page);
+    });
 
+    // Hide all sections, show target
+    document.querySelectorAll(".page-section").forEach(el => {
+        el.classList.remove("active");
+    });
+    const section = document.getElementById("page-" + page);
+    if (section) section.classList.add("active");
 
-    const name =
-        document.getElementById("new-name").value.trim();
-
-    const email =
-        document.getElementById("new-email").value.trim();
-
-    const role =
-        document.getElementById("new-role").value;
-
-    const rollNo =
-        document.getElementById("new-roll-no").value.trim();
-
-    const batch =
-        document.getElementById("new-batch").value.trim();
-
-    const employeeCode =
-        document.getElementById("new-employee-code").value.trim();
-
-
-    const messageBox =
-        document.getElementById("create-user-message");
-
-
-    messageBox.className = "message";
-
-
-    const requestBody = {
-
-        name,
-
-        email,
-
-        role
-
+    // Update topbar
+    const titles = {
+        overview:  ["Dashboard Overview", `Welcome back, ${currentUser?.name || "Admin"}`],
+        users:     ["User Management", "Manage student & teacher accounts"],
+        teachers:  ["Teachers", "All registered teachers"],
+        periods:   ["Academic Periods", "Manage semesters and sessions"],
+        groups:    ["Groups", "Create and manage groups"],
+        subjects:  ["Subjects", "Manage course subjects"]
     };
+    const [title, sub] = titles[page] || ["Dashboard", ""];
+    document.getElementById("topbar-title").textContent = title;
+    document.getElementById("topbar-subtitle").textContent = sub;
 
-
-    if (role === "STUDENT") {
-
-        requestBody.rollNo = rollNo;
-
-        requestBody.batch = batch;
-
-    }
-
-
-    if (role === "TEACHER") {
-
-        requestBody.employeeCode = employeeCode;
-
-    }
-
-
-    try {
-
-        const response = await fetch(
-            "/api/admin/users",
-            {
-
-                method: "POST",
-
-                headers: {
-
-                    "Content-Type":
-                        "application/json",
-
-                    "Authorization":
-                        `Bearer ${jwtToken}`
-
-                },
-
-                body:
-                    JSON.stringify(requestBody)
-
-            }
-        );
-
-
-        const data =
-            await response.json();
-
-
-        if (!response.ok) {
-
-            if (
-                response.status === 401 ||
-                response.status === 403
-            ) {
-
-                logout();
-
-                throw new Error(
-                    "Your session has expired or access was denied. Please log in again."
-                );
-
-            }
-
-
-            throw new Error(
-                data.message ||
-                "Failed to create user"
-            );
-
-        }
-
-
-        messageBox.textContent =
-            data.message || "Account created successfully.";
-
-        messageBox.classList.add("success");
-
-
-        document
-            .getElementById("create-user-form")
-            .reset();
-
-
-        handleRoleChange();
-
-
-    } catch (error) {
-
-        messageBox.textContent =
-            error.message;
-
-        messageBox.classList.add("error");
-
-    }
-
+    // Lazy-load data for each page
+    if (page === "overview") loadOverviewStats();
+    if (page === "users")    loadStudents();
+    if (page === "teachers") loadTeachers();
+    if (page === "periods")  loadAcademicPeriods();
+    if (page === "groups")   loadGroups();
+    if (page === "subjects") loadSubjects();
 }
 
 
 // ============================================================
-// ACADEMIC PERIOD
+// API HELPER
 // ============================================================
 
-async function handleCreateAcademicPeriod(event) {
-
-    event.preventDefault();
-
-
-    const name =
-        document
-            .getElementById("academic-period-name")
-            .value
-            .trim();
-
-    const startDate =
-        document
-            .getElementById("academic-period-start")
-            .value;
-
-    const endDate =
-        document
-            .getElementById("academic-period-end")
-            .value;
-
-
-    const messageBox =
-        document.getElementById(
-            "academic-period-message"
-        );
-
-
-    messageBox.className = "message";
-
-
-    try {
-
-        const response = await fetch(
-            "/api/admin/academic-periods",
-            {
-
-                method: "POST",
-
-                headers: {
-
-                    "Content-Type":
-                        "application/json",
-
-                    "Authorization":
-                        `Bearer ${jwtToken}`
-
-                },
-
-                body: JSON.stringify({
-
-                    name,
-
-                    startDate,
-
-                    endDate
-
-                })
-
-            }
-        );
-
-
-        const data =
-            await response.json();
-
-
-        if (!response.ok) {
-
-            throw new Error(
-                data.message ||
-                "Failed to create academic period"
-            );
-
+async function apiRequest(method, path, body) {
+    const opts = {
+        method,
+        headers: {
+            "Authorization": `Bearer ${jwtToken}`,
+            "Content-Type": "application/json"
         }
+    };
+    if (body) opts.body = JSON.stringify(body);
 
+    const res = await fetch(path, opts);
+    const data = await res.json();
 
-        messageBox.textContent =
-            data.message ||
-            "Academic period created successfully.";
-
-        messageBox.classList.add("success");
-
-
-        document
-            .getElementById("academic-period-form")
-            .reset();
-
-
-        // Refresh period dropdown
-
-        loadAcademicPeriodsForGroup();
-
-
-    } catch (error) {
-
-        messageBox.textContent =
-            error.message;
-
-        messageBox.classList.add("error");
-
+    if (res.status === 401 || res.status === 403) {
+        logout();
+        throw new Error("Session expired. Please log in again.");
     }
 
+    if (!res.ok) throw new Error(data.message || "Request failed");
+    return data;
 }
 
 
 // ============================================================
-// LOAD ACADEMIC PERIODS
+// ALERT HELPER
 // ============================================================
+
+function showAlert(alertId, type, message) {
+    const el = document.getElementById(alertId);
+    if (!el) return;
+    el.className = `alert alert-${type} show`;
+    el.querySelector(".alert-icon").textContent = type === "success" ? "âœ…" : type === "error" ? "âŒ" : "â„¹ï¸";
+    el.querySelector(".alert-msg").textContent = message;
+    setTimeout(() => { el.classList.remove("show"); }, 5000);
+}
+
+
+// ============================================================
+// MODAL HELPERS
+// ============================================================
+
+function openModal(id) {
+    document.getElementById(id).classList.add("open");
+}
+
+function closeModal(id) {
+    document.getElementById(id).classList.remove("open");
+}
+
+
+// ============================================================
+// LOAD DROPDOWNS (called on dashboard load)
+// ============================================================
+
+async function loadDropdowns() {
+    await Promise.all([
+        loadAcademicPeriodsForGroup(),
+        loadGroupsForDropdowns(),
+        loadSubjectsForDropdowns(),
+        loadStudentsForDropdowns()
+    ]);
+}
 
 async function loadAcademicPeriodsForGroup() {
+    try {
+        const data = await apiRequest("GET", "/api/academic/academic-periods");
+        const selects = ["group-academic-period"];
+        selects.forEach(id => {
+            const sel = document.getElementById(id);
+            if (!sel) return;
+            sel.innerHTML = `<option value="">â€” Select Period â€”</option>`;
+            data.academicPeriods.forEach(p => {
+                sel.innerHTML += `<option value="${p._id}">${p.name}</option>`;
+            });
+        });
+    } catch (e) { console.error("Load periods for group:", e); }
+}
 
-    const select =
-        document.getElementById(
-            "group-academic-period"
-        );
+async function loadGroupsForDropdowns() {
+    try {
+        const data = await apiRequest("GET", "/api/admin/groups");
+        const selects = ["assign-subject-group", "assign-student-group"];
+        selects.forEach(id => {
+            const sel = document.getElementById(id);
+            if (!sel) return;
+            sel.innerHTML = `<option value="">â€” Select Group â€”</option>`;
+            data.groups.forEach(g => {
+                const period = g.academicPeriodId?.name ? ` (${g.academicPeriodId.name})` : "";
+                sel.innerHTML += `<option value="${g._id}">${g.name}${period}</option>`;
+            });
+        });
+    } catch (e) { console.error("Load groups for dropdown:", e); }
+}
+
+async function loadSubjectsForDropdowns() {
+    try {
+        const data = await apiRequest("GET", "/api/admin/subjects");
+        const sel = document.getElementById("assign-subject-subject");
+        if (!sel) return;
+        sel.innerHTML = `<option value="">â€” Select Subject â€”</option>`;
+        data.subjects.forEach(s => {
+            sel.innerHTML += `<option value="${s._id}">${s.name} (${s.code})</option>`;
+        });
+    } catch (e) { console.error("Load subjects for dropdown:", e); }
+}
+
+async function loadStudentsForDropdowns() {
+    try {
+        const data = await apiRequest("GET", "/api/admin/students");
+        const sel = document.getElementById("assign-student-student");
+        if (!sel) return;
+        sel.innerHTML = `<option value="">â€” Select Student â€”</option>`;
+        data.students.forEach(s => {
+            sel.innerHTML += `<option value="${s.studentId}">${s.name} â€” ${s.rollNo}</option>`;
+        });
+    } catch (e) { console.error("Load students for dropdown:", e); }
+}
 
 
-    if (!select) return;
+// ============================================================
+// OVERVIEW STATS
+// ============================================================
 
+async function loadOverviewStats() {
+    document.getElementById("stat-students").textContent = "â€¦";
+    document.getElementById("stat-teachers").textContent = "â€¦";
+    document.getElementById("stat-groups").textContent = "â€¦";
+    document.getElementById("stat-subjects").textContent = "â€¦";
 
     try {
-
-        const response = await fetch(
-            "/api/academic/academic-periods",
-            {
-
-                method: "GET",
-
-                headers: {
-
-                    "Authorization":
-                        `Bearer ${jwtToken}`
-
-                }
-
-            }
-        );
+        const [s, t, g, sub] = await Promise.all([
+            apiRequest("GET", "/api/admin/students"),
+            apiRequest("GET", "/api/admin/teachers"),
+            apiRequest("GET", "/api/admin/groups"),
+            apiRequest("GET", "/api/admin/subjects")
+        ]);
+        document.getElementById("stat-students").textContent = s.students.length;
+        document.getElementById("stat-teachers").textContent = t.teachers.length;
+        document.getElementById("stat-groups").textContent = g.groups.length;
+        document.getElementById("stat-subjects").textContent = sub.subjects.length;
+    } catch (e) {
+        console.error("Load stats:", e);
+    }
+}
 
 
-        const data =
-            await response.json();
+// ============================================================
+// STUDENTS
+// ============================================================
 
-
-        if (!response.ok) {
-
-            throw new Error(
-                data.message ||
-                "Failed to load academic periods"
-            );
-
+async function loadStudents() {
+    const tbody = document.getElementById("students-table-body");
+    tbody.innerHTML = `<tr><td colspan="5" class="text-muted text-sm" style="padding:24px;text-align:center;">Loadingâ€¦</td></tr>`;
+    try {
+        const data = await apiRequest("GET", "/api/admin/students");
+        if (!data.students.length) {
+            tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state"><div class="empty-state-icon">ðŸŽ“</div><p>No students yet. Create one from the Dashboard.</p></div></td></tr>`;
+            return;
         }
+        tbody.innerHTML = data.students.map(s => `
+            <tr>
+                <td><span class="font-medium">${esc(s.name)}</span></td>
+                <td class="td-secondary">${esc(s.email)}</td>
+                <td><span class="badge badge-student">${esc(s.rollNo)}</span></td>
+                <td class="td-secondary">${esc(s.batch)}</td>
+                <td>
+                    <div class="flex gap-8">
+                        <button class="btn btn-secondary btn-sm btn-icon" title="Edit" onclick="openEditUser('${s.userId}','${esc(s.name)}','${esc(s.email)}')">âœï¸</button>
+                        <button class="btn btn-danger btn-sm btn-icon" title="Delete" onclick="confirmDelete('Delete student ${esc(s.name)}?', () => deleteUser('${s.userId}'))">ðŸ—‘ï¸</button>
+                    </div>
+                </td>
+            </tr>`).join("");
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-muted text-sm" style="padding:16px;text-align:center;">Error: ${esc(e.message)}</td></tr>`;
+    }
+}
 
 
-        select.innerHTML =
-            `<option value="">
-                Select Academic Period
-            </option>`;
+// ============================================================
+// TEACHERS
+// ============================================================
+
+async function loadTeachers() {
+    const tbody = document.getElementById("teachers-table-body");
+    tbody.innerHTML = `<tr><td colspan="4" class="text-muted text-sm" style="padding:24px;text-align:center;">Loadingâ€¦</td></tr>`;
+    try {
+        const data = await apiRequest("GET", "/api/admin/teachers");
+        if (!data.teachers.length) {
+            tbody.innerHTML = `<tr><td colspan="4"><div class="empty-state"><div class="empty-state-icon">ðŸ‘¨â€ðŸ«</div><p>No teachers yet.</p></div></td></tr>`;
+            return;
+        }
+        tbody.innerHTML = data.teachers.map(t => `
+            <tr>
+                <td><span class="font-medium">${esc(t.name)}</span></td>
+                <td class="td-secondary">${esc(t.email)}</td>
+                <td><span class="badge badge-teacher">${esc(t.employeeCode)}</span></td>
+                <td>
+                    <div class="flex gap-8">
+                        <button class="btn btn-secondary btn-sm btn-icon" title="Edit" onclick="openEditUser('${t.userId}','${esc(t.name)}','${esc(t.email)}')">âœï¸</button>
+                        <button class="btn btn-danger btn-sm btn-icon" title="Delete" onclick="confirmDelete('Delete teacher ${esc(t.name)}?', () => deleteUser('${t.userId}'))">ðŸ—‘ï¸</button>
+                    </div>
+                </td>
+            </tr>`).join("");
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="4" class="text-muted text-sm" style="padding:16px;text-align:center;">Error: ${esc(e.message)}</td></tr>`;
+    }
+}
 
 
-        data.academicPeriods.forEach(
-            (period) => {
+// ============================================================
+// ACADEMIC PERIODS
+// ============================================================
 
-                const option =
-                    document.createElement("option");
+async function loadAcademicPeriods() {
+    const tbody = document.getElementById("periods-table-body");
+    tbody.innerHTML = `<tr><td colspan="3" class="text-muted text-sm" style="padding:24px;text-align:center;">Loadingâ€¦</td></tr>`;
+    try {
+        const data = await apiRequest("GET", "/api/academic/academic-periods");
+        if (!data.academicPeriods.length) {
+            tbody.innerHTML = `<tr><td colspan="3"><div class="empty-state"><div class="empty-state-icon">ðŸ“…</div><p>No academic periods yet.</p></div></td></tr>`;
+            return;
+        }
+        tbody.innerHTML = data.academicPeriods.map(p => `
+            <tr>
+                <td class="font-medium">${esc(p.name)}</td>
+                <td class="td-secondary">${formatDate(p.startDate)}</td>
+                <td class="td-secondary">${formatDate(p.endDate)}</td>
+            </tr>`).join("");
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="3" class="text-muted text-sm" style="padding:16px;text-align:center;">Error: ${esc(e.message)}</td></tr>`;
+    }
+}
 
-                option.value =
-                    period._id;
 
-                option.textContent =
-                    period.name;
+// ============================================================
+// GROUPS
+// ============================================================
 
-                select.appendChild(option);
+async function loadGroups() {
+    const tbody = document.getElementById("groups-table-body");
+    tbody.innerHTML = `<tr><td colspan="3" class="text-muted text-sm" style="padding:24px;text-align:center;">Loadingâ€¦</td></tr>`;
+    try {
+        const data = await apiRequest("GET", "/api/admin/groups");
+        if (!data.groups.length) {
+            tbody.innerHTML = `<tr><td colspan="3"><div class="empty-state"><div class="empty-state-icon">ðŸ—‚ï¸</div><p>No groups yet.</p></div></td></tr>`;
+            return;
+        }
+        tbody.innerHTML = data.groups.map(g => `
+            <tr>
+                <td class="font-medium">${esc(g.name)}</td>
+                <td class="td-secondary">${esc(g.academicPeriodId?.name || "â€”")}</td>
+                <td>
+                    <div class="flex gap-8">
+                        <button class="btn btn-secondary btn-sm" onclick="viewGroupStudents('${g._id}','${esc(g.name)}')">ðŸ‘¥ Students</button>
+                        <button class="btn btn-secondary btn-sm" onclick="viewGroupSubjects('${g._id}','${esc(g.name)}')">ðŸ“š Subjects</button>
+                        <button class="btn btn-danger btn-sm btn-icon" title="Delete Group" onclick="confirmDelete('Delete group ${esc(g.name)}?', () => deleteGroup('${g._id}'))">ðŸ—‘ï¸</button>
+                    </div>
+                </td>
+            </tr>`).join("");
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="3" class="text-muted text-sm" style="padding:16px;text-align:center;">Error: ${esc(e.message)}</td></tr>`;
+    }
+}
 
-            }
-        );
+
+// ============================================================
+// SUBJECTS
+// ============================================================
+
+async function loadSubjects() {
+    const tbody = document.getElementById("subjects-table-body");
+    tbody.innerHTML = `<tr><td colspan="3" class="text-muted text-sm" style="padding:24px;text-align:center;">Loadingâ€¦</td></tr>`;
+    try {
+        const data = await apiRequest("GET", "/api/admin/subjects");
+        if (!data.subjects.length) {
+            tbody.innerHTML = `<tr><td colspan="3"><div class="empty-state"><div class="empty-state-icon">ðŸ“š</div><p>No subjects yet.</p></div></td></tr>`;
+            return;
+        }
+        tbody.innerHTML = data.subjects.map(s => `
+            <tr>
+                <td class="font-medium">${esc(s.name)}</td>
+                <td><span class="badge badge-active">${esc(s.code)}</span></td>
+                <td>
+                    <button class="btn btn-danger btn-sm btn-icon" title="Delete" onclick="confirmDelete('Delete subject ${esc(s.name)}?', () => deleteSubject('${s._id}'))">ðŸ—‘ï¸</button>
+                </td>
+            </tr>`).join("");
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="3" class="text-muted text-sm" style="padding:16px;text-align:center;">Error: ${esc(e.message)}</td></tr>`;
+    }
+}
 
 
-    } catch (error) {
+// ============================================================
+// VIEW GROUP STUDENTS MODAL
+// ============================================================
 
-        console.error(
-            "Academic period loading error:",
-            error
-        );
+async function viewGroupStudents(groupId, groupName) {
+    document.getElementById("modal-group-students-title").textContent = `Students â€” ${groupName}`;
+    const tbody = document.getElementById("modal-group-students-body");
+    tbody.innerHTML = `<tr><td colspan="5" class="text-muted text-sm" style="padding:16px;text-align:center;">Loadingâ€¦</td></tr>`;
+    openModal("modal-group-students");
 
+    try {
+        const data = await apiRequest("GET", `/api/admin/groups/${groupId}/students`);
+        if (!data.students.length) {
+            tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state"><div class="empty-state-icon">ðŸŽ“</div><p>No students in this group.</p></div></td></tr>`;
+            return;
+        }
+        tbody.innerHTML = data.students.map(s => `
+            <tr>
+                <td class="font-medium">${esc(s.name)}</td>
+                <td class="td-secondary">${esc(s.email)}</td>
+                <td>${esc(s.rollNo)}</td>
+                <td class="td-secondary">${esc(s.batch)}</td>
+                <td>
+                    <button class="btn btn-danger btn-sm btn-icon" title="Remove" onclick="removeStudentFromGroup('${groupId}','${s.studentId}', this)">âœ•</button>
+                </td>
+            </tr>`).join("");
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-muted text-sm" style="padding:16px;text-align:center;">Error: ${esc(e.message)}</td></tr>`;
+    }
+}
+
+
+// ============================================================
+// VIEW GROUP SUBJECTS MODAL
+// ============================================================
+
+async function viewGroupSubjects(groupId, groupName) {
+    document.getElementById("modal-group-subjects-title").textContent = `Subjects â€” ${groupName}`;
+    const tbody = document.getElementById("modal-group-subjects-body");
+    tbody.innerHTML = `<tr><td colspan="3" class="text-muted text-sm" style="padding:16px;text-align:center;">Loadingâ€¦</td></tr>`;
+    openModal("modal-group-subjects");
+
+    try {
+        const data = await apiRequest("GET", `/api/academic/groups/${groupId}/subjects`);
+        if (!data.subjects.length) {
+            tbody.innerHTML = `<tr><td colspan="3"><div class="empty-state"><div class="empty-state-icon">ðŸ“š</div><p>No subjects assigned to this group.</p></div></td></tr>`;
+            return;
+        }
+        tbody.innerHTML = data.subjects.map(s => `
+            <tr>
+                <td class="font-medium">${esc(s.name)}</td>
+                <td><span class="badge badge-active">${esc(s.code)}</span></td>
+                <td>
+                    <button class="btn btn-danger btn-sm btn-icon" title="Remove" onclick="removeSubjectFromGroup('${groupId}','${s.subjectId}', this)">âœ•</button>
+                </td>
+            </tr>`).join("");
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="3" class="text-muted text-sm" style="padding:16px;text-align:center;">Error: ${esc(e.message)}</td></tr>`;
+    }
+}
+
+
+// ============================================================
+// REMOVE STUDENT / SUBJECT FROM GROUP
+// ============================================================
+
+async function removeStudentFromGroup(groupId, studentId, btn) {
+    btn.disabled = true;
+    try {
+        await apiRequest("DELETE", `/api/admin/groups/${groupId}/students/${studentId}`);
+        btn.closest("tr").remove();
+    } catch (e) {
+        btn.disabled = false;
+        alert(e.message);
+    }
+}
+
+async function removeSubjectFromGroup(groupId, subjectId, btn) {
+    btn.disabled = true;
+    try {
+        await apiRequest("DELETE", `/api/admin/groups/${groupId}/subjects/${subjectId}`);
+        btn.closest("tr").remove();
+    } catch (e) {
+        btn.disabled = false;
+        alert(e.message);
+    }
+}
+
+
+// ============================================================
+// EDIT USER
+// ============================================================
+
+function openEditUser(userId, name, email) {
+    document.getElementById("edit-user-id").value = userId;
+    document.getElementById("edit-user-name").value = name;
+    document.getElementById("edit-user-email").value = email;
+    document.getElementById("edit-user-alert").classList.remove("show");
+    openModal("modal-edit-user");
+}
+
+async function saveEditUser() {
+    const userId = document.getElementById("edit-user-id").value;
+    const name  = document.getElementById("edit-user-name").value.trim();
+    const email = document.getElementById("edit-user-email").value.trim();
+
+    try {
+        await apiRequest("PUT", `/api/admin/users/${userId}`, { name, email });
+        showAlert("edit-user-alert", "success", "User updated successfully.");
+        setTimeout(() => {
+            closeModal("modal-edit-user");
+            if (currentPage === "users") loadStudents();
+            if (currentPage === "teachers") loadTeachers();
+        }, 1200);
+    } catch (e) {
+        showAlert("edit-user-alert", "error", e.message);
+    }
+}
+
+
+// ============================================================
+// DELETE HELPERS
+// ============================================================
+
+function confirmDelete(message, callback) {
+    document.getElementById("confirm-delete-msg").textContent = message;
+    deleteCallback = callback;
+    openModal("modal-confirm-delete");
+}
+
+async function deleteUser(userId) {
+    try {
+        await apiRequest("DELETE", `/api/admin/users/${userId}`);
+        closeModal("modal-confirm-delete");
+        if (currentPage === "users") loadStudents();
+        if (currentPage === "teachers") loadTeachers();
+        await loadDropdowns();
+    } catch (e) { alert(e.message); }
+}
+
+async function deleteGroup(groupId) {
+    try {
+        await apiRequest("DELETE", `/api/admin/groups/${groupId}`);
+        closeModal("modal-confirm-delete");
+        loadGroups();
+        await loadGroupsForDropdowns();
+    } catch (e) { alert(e.message); }
+}
+
+async function deleteSubject(subjectId) {
+    try {
+        await apiRequest("DELETE", `/api/admin/subjects/${subjectId}`);
+        closeModal("modal-confirm-delete");
+        loadSubjects();
+        await loadSubjectsForDropdowns();
+    } catch (e) { alert(e.message); }
+}
+
+
+// ============================================================
+// CREATE USER (shared handler for both forms)
+// ============================================================
+
+async function handleCreateUserForm(formPrefix, alertId) {
+    const suffix = formPrefix ? "-" + formPrefix : "";
+    const name  = document.getElementById(`new-name${suffix}`).value.trim();
+    const email = document.getElementById(`new-email${suffix}`).value.trim();
+    const role  = document.getElementById(`new-role${suffix}`).value;
+
+    const body = { name, email, role };
+
+    if (role === "STUDENT") {
+        body.rollNo = document.getElementById(`new-roll-no${suffix}`).value.trim();
+        body.batch  = document.getElementById(`new-batch${suffix}`).value.trim();
+    }
+    if (role === "TEACHER") {
+        body.employeeCode = document.getElementById(`new-employee-code${suffix}`).value.trim();
     }
 
+    try {
+        const data = await apiRequest("POST", "/api/admin/users", body);
+        showAlert(alertId, "success", data.message || "Account created successfully.");
+        document.getElementById(`create-user-form${suffix}`).reset();
+        handleRoleChange(suffix);
+        await loadDropdowns();
+        if (currentPage === "users") loadStudents();
+        if (currentPage === "teachers") loadTeachers();
+        loadOverviewStats();
+    } catch (e) {
+        showAlert(alertId, "error", e.message);
+    }
+}
+
+
+// ============================================================
+// CREATE ACADEMIC PERIOD (shared handler)
+// ============================================================
+
+async function handleCreateAcademicPeriod(formId, alertId, nameId, startId, endId) {
+    const name      = document.getElementById(nameId).value.trim();
+    const startDate = document.getElementById(startId).value;
+    const endDate   = document.getElementById(endId).value;
+
+    try {
+        const data = await apiRequest("POST", "/api/admin/academic-periods", { name, startDate, endDate });
+        showAlert(alertId, "success", data.message || "Academic period created.");
+        document.getElementById(formId).reset();
+        await loadAcademicPeriodsForGroup();
+        if (currentPage === "periods") loadAcademicPeriods();
+    } catch (e) {
+        showAlert(alertId, "error", e.message);
+    }
+}
+
+
+// ============================================================
+// ROLE CHANGE TOGGLE
+// ============================================================
+
+function handleRoleChange(suffix) {
+    const sfx = suffix || "";
+    const role     = document.getElementById(`new-role${sfx}`)?.value || "";
+    const sfFields = document.getElementById(`student-fields${sfx}`);
+    const tfFields = document.getElementById(`teacher-fields${sfx}`);
+
+    if (sfFields) sfFields.style.display = role === "STUDENT" ? "block" : "none";
+    if (tfFields) tfFields.style.display = role === "TEACHER" ? "block" : "none";
+
+    // required attributes
+    ["new-roll-no", "new-batch"].forEach(id => {
+        const el = document.getElementById(id + sfx);
+        if (el) el.required = role === "STUDENT";
+    });
+    const ec = document.getElementById(`new-employee-code${sfx}`);
+    if (ec) ec.required = role === "TEACHER";
 }
 
 
@@ -511,96 +680,18 @@ async function loadAcademicPeriodsForGroup() {
 // ============================================================
 
 async function handleCreateGroup(event) {
-
     event.preventDefault();
-
-
-    const academicPeriodId =
-        document
-            .getElementById("group-academic-period")
-            .value;
-
-    const name =
-        document
-            .getElementById("group-name")
-            .value
-            .trim();
-
-
-    const messageBox =
-        document.getElementById(
-            "group-message"
-        );
-
-
-    messageBox.className = "message";
-
-
+    const academicPeriodId = document.getElementById("group-academic-period").value;
+    const name = document.getElementById("group-name").value.trim();
     try {
-
-        const response = await fetch(
-            "/api/admin/groups",
-            {
-
-                method: "POST",
-
-                headers: {
-
-                    "Content-Type":
-                        "application/json",
-
-                    "Authorization":
-                        `Bearer ${jwtToken}`
-
-                },
-
-                body: JSON.stringify({
-
-                    name,
-
-                    academicPeriodId
-
-                })
-
-            }
-        );
-
-
-        const data =
-            await response.json();
-
-
-        if (!response.ok) {
-
-            throw new Error(
-                data.message ||
-                "Failed to create group"
-            );
-
-        }
-
-
-        messageBox.textContent =
-            data.message ||
-            "Group created successfully.";
-
-        messageBox.classList.add("success");
-
-
-        document
-            .getElementById("group-form")
-            .reset();
-
-
-    } catch (error) {
-
-        messageBox.textContent =
-            error.message;
-
-        messageBox.classList.add("error");
-
+        const data = await apiRequest("POST", "/api/admin/groups", { name, academicPeriodId });
+        showAlert("group-create-alert", "success", data.message || "Group created.");
+        document.getElementById("group-form").reset();
+        await loadGroupsForDropdowns();
+        loadGroups();
+    } catch (e) {
+        showAlert("group-create-alert", "error", e.message);
     }
-
 }
 
 
@@ -609,170 +700,86 @@ async function handleCreateGroup(event) {
 // ============================================================
 
 async function handleCreateSubject(event) {
-
     event.preventDefault();
-
-
-    const name =
-        document
-            .getElementById("subject-name")
-            .value
-            .trim();
-
-    const code =
-        document
-            .getElementById("subject-code")
-            .value
-            .trim();
-
-
-    const messageBox =
-        document.getElementById(
-            "subject-message"
-        );
-
-
-    messageBox.className = "message";
-
-
+    const name = document.getElementById("subject-name").value.trim();
+    const code = document.getElementById("subject-code").value.trim();
     try {
-
-        const response = await fetch(
-            "/api/admin/subjects",
-            {
-
-                method: "POST",
-
-                headers: {
-
-                    "Content-Type":
-                        "application/json",
-
-                    "Authorization":
-                        `Bearer ${jwtToken}`
-
-                },
-
-                body: JSON.stringify({
-
-                    name,
-
-                    code
-
-                })
-
-            }
-        );
-
-
-        const data =
-            await response.json();
-
-
-        if (!response.ok) {
-
-            throw new Error(
-                data.message ||
-                "Failed to create subject"
-            );
-
-        }
-
-
-        messageBox.textContent =
-            data.message ||
-            "Subject created successfully.";
-
-        messageBox.classList.add("success");
-
-
-        document
-            .getElementById("subject-form")
-            .reset();
-
-
-    } catch (error) {
-
-        messageBox.textContent =
-            error.message;
-
-        messageBox.classList.add("error");
-
+        const data = await apiRequest("POST", "/api/admin/subjects", { name, code });
+        showAlert("subject-create-alert", "success", data.message || "Subject created.");
+        document.getElementById("subject-form").reset();
+        await loadSubjectsForDropdowns();
+        loadSubjects();
+    } catch (e) {
+        showAlert("subject-create-alert", "error", e.message);
     }
-
 }
 
 
 // ============================================================
-// ROLE CHANGE
+// ASSIGN STUDENT TO GROUP
 // ============================================================
 
-function handleRoleChange() {
+async function assignStudentToGroup() {
+    const groupId   = document.getElementById("assign-student-group").value;
+    const studentId = document.getElementById("assign-student-student").value;
 
-    const role =
-        document
-            .getElementById("new-role")
-            .value;
-
-
-    const studentFields =
-        document.getElementById(
-            "student-fields"
-        );
-
-    const teacherFields =
-        document.getElementById(
-            "teacher-fields"
-        );
-
-
-    const rollNo =
-        document.getElementById(
-            "new-roll-no"
-        );
-
-    const batch =
-        document.getElementById(
-            "new-batch"
-        );
-
-    const employeeCode =
-        document.getElementById(
-            "new-employee-code"
-        );
-
-
-    studentFields.style.display = "none";
-
-    teacherFields.style.display = "none";
-
-
-    rollNo.required = false;
-
-    batch.required = false;
-
-    employeeCode.required = false;
-
-
-    if (role === "STUDENT") {
-
-        studentFields.style.display = "block";
-
-        rollNo.required = true;
-
-        batch.required = true;
-
+    if (!groupId || !studentId) {
+        showAlert("assign-student-alert", "error", "Please select both a group and a student.");
+        return;
     }
 
+    try {
+        const data = await apiRequest("POST", `/api/admin/groups/${groupId}/students`, { studentId });
+        showAlert("assign-student-alert", "success", data.message || "Student assigned.");
+        document.getElementById("assign-student-group").value = "";
+        document.getElementById("assign-student-student").value = "";
+    } catch (e) {
+        showAlert("assign-student-alert", "error", e.message);
+    }
+}
 
-    if (role === "TEACHER") {
 
-        teacherFields.style.display = "block";
+// ============================================================
+// ASSIGN SUBJECT TO GROUP
+// ============================================================
 
-        employeeCode.required = true;
+async function handleAssignSubject(event) {
+    event.preventDefault();
+    const groupId   = document.getElementById("assign-subject-group").value;
+    const subjectId = document.getElementById("assign-subject-subject").value;
 
+    if (!groupId || !subjectId) {
+        showAlert("assign-subject-alert", "error", "Please select both a group and a subject.");
+        return;
     }
 
+    try {
+        const data = await apiRequest("POST", `/api/admin/groups/${groupId}/subjects`, { subjectId });
+        showAlert("assign-subject-alert", "success", data.message || "Subject assigned.");
+        document.getElementById("assign-subject-form").reset();
+    } catch (e) {
+        showAlert("assign-subject-alert", "error", e.message);
+    }
+}
+
+
+// ============================================================
+// UTILITIES
+// ============================================================
+
+function esc(str) {
+    if (str == null) return "";
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return "â€”";
+    return new Date(dateStr).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 
@@ -782,72 +789,86 @@ function handleRoleChange() {
 
 function setupEventListeners() {
 
-    document
-        .getElementById("logout-btn")
-        .addEventListener(
-            "click",
-            logout
-        );
+    // --- Sidebar navigation ---
+    document.querySelectorAll(".nav-item[data-page]").forEach(item => {
+        item.addEventListener("click", () => navigateTo(item.dataset.page));
+    });
 
+    // --- Logout ---
+    document.getElementById("logout-btn").addEventListener("click", logout);
 
-    document
-        .getElementById("create-user-form")
-        .addEventListener(
-            "submit",
-            handleCreateUser
-        );
+    // --- Modal close buttons ---
+    document.querySelectorAll("[data-close]").forEach(btn => {
+        btn.addEventListener("click", () => closeModal(btn.dataset.close));
+    });
 
+    // Close modal on overlay click
+    document.querySelectorAll(".modal-overlay").forEach(overlay => {
+        overlay.addEventListener("click", e => {
+            if (e.target === overlay) overlay.classList.remove("open");
+        });
+    });
 
-    document
-        .getElementById("new-role")
-        .addEventListener(
-            "change",
-            handleRoleChange
-        );
+    // --- Confirm delete ---
+    document.getElementById("confirm-delete-btn").addEventListener("click", () => {
+        if (deleteCallback) deleteCallback();
+        deleteCallback = null;
+    });
 
+    // --- Edit user save ---
+    document.getElementById("save-edit-user-btn").addEventListener("click", saveEditUser);
 
-    document
-        .getElementById("academic-period-form")
-        .addEventListener(
-            "submit",
-            handleCreateAcademicPeriod
-        );
+    // --- Dashboard overview quick-create form ---
+    document.getElementById("create-user-form").addEventListener("submit", e => {
+        e.preventDefault();
+        handleCreateUserForm("", "quick-create-alert");
+    });
+    document.getElementById("new-role").addEventListener("change", () => handleRoleChange(""));
 
+    // --- Dashboard overview academic period form ---
+    document.getElementById("academic-period-form").addEventListener("submit", e => {
+        e.preventDefault();
+        handleCreateAcademicPeriod("academic-period-form", "quick-period-alert", "academic-period-name", "academic-period-start", "academic-period-end");
+    });
 
-    document
-        .getElementById("group-form")
-        .addEventListener(
-            "submit",
-            handleCreateGroup
-        );
+    // --- Users page: create form ---
+    document.getElementById("create-user-form-2").addEventListener("submit", e => {
+        e.preventDefault();
+        handleCreateUserForm("2", "create-user-alert");
+    });
+    document.getElementById("new-role-2").addEventListener("change", () => handleRoleChange("-2"));
 
+    // --- Users page: tab switching ---
+    document.querySelectorAll(".tab-btn[data-tab]").forEach(btn => {
+        btn.addEventListener("click", () => {
+            document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+            document.querySelectorAll(".tab-content").forEach(c => c.style.display = "none");
+            btn.classList.add("active");
+            document.getElementById(btn.dataset.tab).style.display = "block";
+        });
+    });
 
-    document
-        .getElementById("subject-form")
-        .addEventListener(
-            "submit",
-            handleCreateSubject
-        );
+    // --- Academic periods page form ---
+    document.getElementById("academic-period-form-2").addEventListener("submit", e => {
+        e.preventDefault();
+        handleCreateAcademicPeriod("academic-period-form-2", "period-alert", "ap-name", "ap-start", "ap-end");
+    });
+
+    // --- Groups page ---
+    document.getElementById("group-form").addEventListener("submit", handleCreateGroup);
+    document.getElementById("assign-subject-form").addEventListener("submit", handleAssignSubject);
+    document.getElementById("assign-student-btn").addEventListener("click", assignStudentToGroup);
+
+    // --- Subjects page ---
+    document.getElementById("subject-form").addEventListener("submit", handleCreateSubject);
+
+    // --- Refresh buttons ---
+    document.getElementById("refresh-overview-btn")?.addEventListener("click", loadOverviewStats);
+    document.getElementById("refresh-users-btn")?.addEventListener("click", loadStudents);
+    document.getElementById("refresh-teachers-btn")?.addEventListener("click", loadTeachers);
+    document.getElementById("refresh-periods-btn")?.addEventListener("click", loadAcademicPeriods);
+    document.getElementById("refresh-groups-btn")?.addEventListener("click", loadGroups);
+    document.getElementById("refresh-subjects-btn")?.addEventListener("click", loadSubjects);
 
 }
 
-
-// ============================================================
-// LOGIN ERROR
-// ============================================================
-
-function showLoginError(message) {
-
-    const errorDiv =
-        document.getElementById(
-            "login-error"
-        );
-
-
-    errorDiv.textContent =
-        message;
-
-    errorDiv.style.display =
-        "block";
-
-}

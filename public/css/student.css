@@ -1,0 +1,183 @@
+/* ============================================================
+   BASIC
+   ============================================================ */
+
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 20px;
+    background-color: #f4f4f4;
+    color: #333;
+}
+
+
+/* ============================================================
+   CONTAINER
+   ============================================================ */
+
+.container {
+    max-width: 1000px;
+    margin: 0 auto;
+    background: #fff;
+    padding: 20px;
+    border: 1px solid #ccc;
+}
+
+
+/* ============================================================
+   HEADER
+   ============================================================ */
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    border-bottom: 2px solid #eee;
+
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+}
+
+
+/* ============================================================
+   DASHBOARD MODULE
+   ============================================================ */
+
+.dashboard-module {
+    border: 1px solid #ddd;
+
+    padding: 20px;
+
+    margin-bottom: 20px;
+}
+
+
+.dashboard-module h3 {
+    margin-top: 0;
+
+    border-bottom: 1px solid #ddd;
+
+    padding-bottom: 10px;
+}
+
+
+/* ============================================================
+   ACTIVE SESSION
+   ============================================================ */
+
+.active-session {
+    border: 1px solid #28a745;
+
+    padding: 20px;
+
+    background-color: #f8fff9;
+}
+
+
+.session-status {
+    display: inline-block;
+
+    padding: 6px 10px;
+
+    margin-bottom: 10px;
+
+    background-color: #28a745;
+
+    color: white;
+
+    font-weight: bold;
+
+    font-size: 13px;
+}
+
+
+.active-session h3 {
+    border: none;
+
+    margin-bottom: 10px;
+}
+
+
+/* ============================================================
+   NO SESSION
+   ============================================================ */
+
+.no-session {
+    padding: 20px;
+
+    background-color: #f8f8f8;
+
+    border: 1px solid #ddd;
+}
+
+
+/* ============================================================
+   BUTTON
+   ============================================================ */
+
+button {
+    padding: 10px 15px;
+
+    background-color: #0056b3;
+
+    color: white;
+
+    border: none;
+
+    cursor: pointer;
+}
+
+
+button:disabled {
+    background-color: #999;
+
+    cursor: not-allowed;
+}
+
+
+.btn-danger {
+    background-color: #d9534f;
+}
+
+
+/* ============================================================
+   ERROR
+   ============================================================ */
+
+.error-box {
+    padding: 15px;
+
+    background-color: #f2dede;
+
+    border: 1px solid #ebcccc;
+
+    color: #a94442;
+}
+
+
+.message {
+    padding: 10px;
+
+    margin-bottom: 15px;
+
+    border: 1px solid transparent;
+}
+
+
+.message.error {
+    background-color: #f2dede;
+
+    border-color: #ebcccc;
+
+    color: #a94442;
+}
+
+
+.coming-soon {
+    margin-top: 12px;
+
+    font-size: 13px;
+
+    color: #777;
+}

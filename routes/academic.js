@@ -7,6 +7,10 @@ const AcademicPeriod = require("../models/AcademicPeriod");
 const authMiddleware = require("../middleware/authMiddleware");
 const roleMiddleware = require("../middleware/roleMiddleware");
 
+const StudentGroup = require("../models/StudentGroup");
+const Student = require("../models/Student");
+const User = require("../models/User");
+
 const router = express.Router();
 
 
@@ -131,5 +135,45 @@ router.get(
     }
 );
 
+// get students of a group 
+router.get(
+    "/groups/:groupId/students",
+    authMiddleware,
+    roleMiddleware("TEACHER"),
+    async(req, res) => {
+        try {
+            const { groupId } = req.params ;
+            const studentGroups = await StudentGroup.find({ groupId }) ;
+            const students = [] ;
+
+            for (const studentGroup of studentGroups){
+                const student = await Student.findById(studentGroup.studentId)
+                .populate("userId", "name email") ;
+
+                if (student){
+                    students.push({
+                        studentId : student._id,
+                        rollNo : student.rollNo, 
+                        name : student.userId.name, 
+                        email : student.userId.email
+                    }) ;
+                }
+            }
+
+            res.json({
+                groupId, 
+                students
+            }) ;
+        }
+        catch (error) {
+            console.error("Get group students error:", error);
+
+            res.status(500).json({
+                message: "Server error",
+                error: error.message
+            });
+        }
+    }
+);
 
 module.exports = router;

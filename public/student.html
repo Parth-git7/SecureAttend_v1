@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>SecureAttend Student</title>
+
+    <link rel="stylesheet" href="css/student.css">
+</head>
+
+<body>
+
+<div class="container">
+
+    <!-- ================= LOGIN ================= -->
+
+    <div id="login-section">
+
+        <h2>SecureAttend Student Login</h2>
+
+        <div
+            id="login-error"
+            class="message error"
+            style="display: none;">
+        </div>
+
+        <p>
+            Please sign in with your Chitkara Google account.
+        </p>
+
+        <!-- Google Identity Services -->
+
+        <div
+            id="g_id_onload"
+            data-client_id="422630917805-8gmd6hgqqql06sgritbn3p0ofd7htoeg.apps.googleusercontent.com"
+            data-context="signin"
+            data-ux_mode="popup"
+            data-callback="handleGoogleCredential"
+            data-auto_prompt="false">
+        </div>
+
+        <div
+            class="g_id_signin"
+            data-type="standard"
+            data-shape="rectangular"
+            data-theme="outline"
+            data-text="signin_with"
+            data-size="large"
+            data-logo_alignment="left">
+        </div>
+
+    </div>
+
+
+    <!-- ================= DASHBOARD ================= -->
+
+    <div id="dashboard-section" style="display: none;">
+
+        <div class="header">
+
+            <div>
+
+                <h2>
+                    SecureAttend Student Dashboard
+                </h2>
+
+                <p>
+                    Logged in as:
+
+                    <strong id="current-student-name"></strong>
+
+                    (
+                    <span id="current-student-email"></span>
+                    )
+
+                    -
+
+                    <strong id="current-student-role"></strong>
+                </p>
+
+            </div>
+
+            <button
+                id="logout-btn"
+                class="btn-danger">
+                Logout
+            </button>
+
+        </div>
+
+
+        <!-- ================= ACTIVE SESSION ================= -->
+
+        <div class="dashboard-module">
+
+            <h3>Attendance</h3>
+
+            <div id="session-container">
+
+                <p>
+                    Checking for active attendance sessions...
+                </p>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- GOOGLE IDENTITY SERVICES -->
+
+<script
+    src="https://accounts.google.com/gsi/client"
+    async
+    defer>
+</script>
+
+
+<!-- STUDENT LOGIC -->
+
+<script src="js/student.js"></script>
+
+</body>
+
+</html>

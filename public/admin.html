@@ -3,495 +3,355 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
     <title>SecureAttend Admin</title>
-
+    <meta name="description" content="SecureAttend Admin Panel - Manage students, teachers, groups, and subjects.">
     <link rel="stylesheet" href="css/admin.css">
 </head>
-
 <body>
 
-<div class="container">
-
-    <!-- ================= LOGIN ================= -->
-
-    <div id="login-section">
-
-        <h2>SecureAttend Admin Login</h2>
-
-        <div id="login-error"
-             class="message error"
-             style="display: none;">
+<div id="login-section">
+    <div class="login-card">
+        <div class="login-logo">SA</div>
+        <h1>SecureAttend</h1>
+        <p>Admin Control Panel - Sign in with your administrator Google account to continue.</p>
+        <div id="login-error"></div>
+        <div class="login-divider">Sign in with Google</div>
+        <div class="google-btn-container">
+            <div id="g_id_onload"
+                 data-client_id="422630917805-8gmd6hgqqql06sgritbn3p0ofd7htoeg.apps.googleusercontent.com"
+                 data-context="signin" data-ux_mode="popup"
+                 data-callback="handleGoogleCredential" data-auto_prompt="false"></div>
+            <div class="g_id_signin" data-type="standard" data-shape="rectangular"
+                 data-theme="filled_black" data-text="signin_with" data-size="large"
+                 data-logo_alignment="left"></div>
         </div>
-
-        <p>
-            Please sign in with your administrator Google account.
-        </p>
-
-        <!-- Google Identity Services -->
-
-        <div id="g_id_onload"
-             data-client_id="422630917805-8gmd6hgqqql06sgritbn3p0ofd7htoeg.apps.googleusercontent.com"
-             data-context="signin"
-             data-ux_mode="popup"
-             data-callback="handleGoogleCredential"
-             data-auto_prompt="false">
-        </div>
-
-        <div class="g_id_signin"
-             data-type="standard"
-             data-shape="rectangular"
-             data-theme="outline"
-             data-text="signin_with"
-             data-size="large"
-             data-logo_alignment="left">
-        </div>
-
     </div>
-
-
-    <!-- ================= DASHBOARD ================= -->
-
-    <div id="dashboard-section">
-
-        <!-- HEADER -->
-
-        <div class="header">
-
-            <div>
-
-                <h2>
-                    SecureAttend Admin Dashboard
-                </h2>
-
-                <p>
-                    Logged in as:
-
-                    <strong id="current-admin-name"></strong>
-
-                    (
-                    <span id="current-admin-email"></span>
-                    )
-
-                    -
-
-                    <strong id="current-admin-role"></strong>
-                </p>
-
-            </div>
-
-            <button
-                id="logout-btn"
-                class="btn-danger">
-                Logout
-            </button>
-
-        </div>
-
-
-        <!-- ================= CREATE USER ================= -->
-
-        <div class="dashboard-module">
-
-            <h3>
-                User Management: Create Account
-            </h3>
-
-            <div
-                id="create-user-message"
-                class="message">
-            </div>
-
-            <form id="create-user-form">
-
-                <!-- NAME -->
-
-                <div class="form-group">
-
-                    <label for="new-name">
-                        Name
-                    </label>
-
-                    <input
-                        type="text"
-                        id="new-name"
-                        placeholder="Enter full name"
-                        required
-                    >
-
-                </div>
-
-
-                <!-- EMAIL -->
-
-                <div class="form-group">
-
-                    <label for="new-email">
-                        Email
-                    </label>
-
-                    <input
-                        type="email"
-                        id="new-email"
-                        placeholder="Enter Chitkara email"
-                        required
-                    >
-
-                </div>
-
-
-                <!-- ROLE -->
-
-                <div class="form-group">
-
-                    <label for="new-role">
-                        Role
-                    </label>
-
-                    <select
-                        id="new-role"
-                        required>
-
-                        <option value="">
-                            Select role
-                        </option>
-
-                        <option value="STUDENT">
-                            Student
-                        </option>
-
-                        <option value="TEACHER">
-                            Teacher
-                        </option>
-
-                    </select>
-
-                </div>
-
-
-                <!-- STUDENT FIELDS -->
-
-                <div
-                    id="student-fields"
-                    style="display: none;">
-
-                    <div class="form-group">
-
-                        <label for="new-roll-no">
-                            Roll Number
-                        </label>
-
-                        <input
-                            type="text"
-                            id="new-roll-no"
-                            placeholder="Enter roll number"
-                        >
-
-                    </div>
-
-
-                    <div class="form-group">
-
-                        <label for="new-batch">
-                            Batch
-                        </label>
-
-                        <input
-                            type="text"
-                            id="new-batch"
-                            placeholder="Example: 2024"
-                        >
-
-                    </div>
-
-                </div>
-
-
-                <!-- TEACHER FIELDS -->
-
-                <div
-                    id="teacher-fields"
-                    style="display: none;">
-
-                    <div class="form-group">
-
-                        <label for="new-employee-code">
-                            Employee Code
-                        </label>
-
-                        <input
-                            type="text"
-                            id="new-employee-code"
-                            placeholder="Enter employee code"
-                        >
-
-                    </div>
-
-                </div>
-
-
-                <button type="submit">
-                    Create Account
-                </button>
-
-            </form>
-
-        </div>
-
-
-
-        <!-- ================= ACADEMIC PERIOD ================= -->
-
-        <div class="dashboard-module">
-
-            <h3>
-                Academic Period Management
-            </h3>
-
-            <div
-                id="academic-period-message"
-                class="message">
-            </div>
-
-            <form id="academic-period-form">
-
-                <div class="form-group">
-
-                    <label for="academic-period-name">
-                        Academic Period Name
-                    </label>
-
-                    <input
-                        type="text"
-                        id="academic-period-name"
-                        placeholder="Example: 2026 Semester 1"
-                        required
-                    >
-
-                </div>
-
-
-                <div class="form-group">
-
-                    <label for="academic-period-start">
-                        Start Date
-                    </label>
-
-                    <input
-                        type="date"
-                        id="academic-period-start"
-                        required
-                    >
-
-                </div>
-
-
-                <div class="form-group">
-
-                    <label for="academic-period-end">
-                        End Date
-                    </label>
-
-                    <input
-                        type="date"
-                        id="academic-period-end"
-                        required
-                    >
-
-                </div>
-
-
-                <button type="submit">
-                    Create Academic Period
-                </button>
-
-            </form>
-
-        </div>
-
-
-
-        <!-- ================= GROUP ================= -->
-
-        <div class="dashboard-module">
-
-            <h3>
-                Group Management
-            </h3>
-
-            <div
-                id="group-message"
-                class="message">
-            </div>
-
-            <form id="group-form">
-
-                <div class="form-group">
-
-                    <label for="group-academic-period">
-                        Academic Period
-                    </label>
-
-                    <select
-                        id="group-academic-period"
-                        required>
-
-                        <option value="">
-                            Select Academic Period
-                        </option>
-
-                    </select>
-
-                </div>
-
-
-                <div class="form-group">
-
-                    <label for="group-name">
-                        Group Name
-                    </label>
-
-                    <input
-                        type="text"
-                        id="group-name"
-                        placeholder="Example: G1"
-                        required
-                    >
-
-                </div>
-
-
-                <button type="submit">
-                    Create Group
-                </button>
-
-            </form>
-
-        </div>
-
-
-
-        <!-- ================= SUBJECT ================= -->
-
-        <div class="dashboard-module">
-
-            <h3>
-                Subject Management
-            </h3>
-
-            <div
-                id="subject-message"
-                class="message">
-            </div>
-
-            <form id="subject-form">
-
-                <div class="form-group">
-
-                    <label for="subject-name">
-                        Subject Name
-                    </label>
-
-                    <input
-                        type="text"
-                        id="subject-name"
-                        placeholder="Example: Data Structures"
-                        required
-                    >
-
-                </div>
-
-
-                <div class="form-group">
-
-                    <label for="subject-code">
-                        Subject Code
-                    </label>
-
-                    <input
-                        type="text"
-                        id="subject-code"
-                        placeholder="Example: CSE201"
-                        required
-                    >
-
-                </div>
-
-
-                <button type="submit">
-                    Create Subject
-                </button>
-
-            </form>
-
-        </div>
-
-
-
-        <!-- ================= USER LIST ================= -->
-
-        <div class="dashboard-module">
-
-            <h3>
-                View Users
-            </h3>
-
-            <div class="future-stub">
-
-                User listing API is not implemented yet.
-
-                <p>
-                    Once
-                    <strong>GET /api/admin/users</strong>
-                    exists, we can populate this table.
-                </p>
-
-            </div>
-
-            <table>
-
-                <thead>
-
-                    <tr>
-                        <th>Name</th>
-                        <th>Email</th>
-                        <th>Role</th>
-                        <th>Created At</th>
-                    </tr>
-
-                </thead>
-
-                <tbody id="user-list-body">
-
-                    <tr>
-                        <td colspan="4">
-                            No data loaded.
-                        </td>
-                    </tr>
-
-                </tbody>
-
-            </table>
-
-        </div>
-
-    </div>
-
 </div>
 
+<div id="dashboard-section">
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-logo">
+                <div class="sidebar-logo-icon">SA</div>
+                <div>
+                    <div class="sidebar-logo-text">SecureAttend</div>
+                    <div class="sidebar-logo-sub">Admin Panel</div>
+                </div>
+            </div>
+        </div>
+        <nav class="sidebar-nav">
+            <div class="nav-section-label">Overview</div>
+            <div class="nav-item active" data-page="overview" id="nav-overview">
+                <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></span> Dashboard
+            </div>
+            <div class="nav-section-label">Accounts</div>
+            <div class="nav-item" data-page="users" id="nav-users">
+                <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span> Users
+            </div>
+            <div class="nav-item" data-page="teachers" id="nav-teachers">
+                <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a6 6 0 0 1 12 0v2"/></svg></span> Teachers
+            </div>
+            <div class="nav-section-label">Academic</div>
+            <div class="nav-item" data-page="periods" id="nav-periods">
+                <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span> Academic Periods
+            </div>
+            <div class="nav-item" data-page="groups" id="nav-groups">
+                <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg></span> Groups
+            </div>
+            <div class="nav-item" data-page="subjects" id="nav-subjects">
+                <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></span> Subjects
+            </div>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="admin-profile">
+                <div class="admin-avatar" id="admin-avatar-initials">A</div>
+                <div class="admin-info">
+                    <div class="admin-name" id="sidebar-admin-name">Admin</div>
+                    <div class="admin-role">Administrator</div>
+                </div>
+                <button class="logout-btn" id="logout-btn" title="Logout">&#x2715;</button>
+            </div>
+        </div>
+    </aside>
 
-<!-- GOOGLE -->
+    <div class="main-content">
+        <header class="topbar">
+            <div>
+                <div class="topbar-title" id="topbar-title">Dashboard</div>
+                <div class="topbar-subtitle" id="topbar-subtitle">Welcome back, Admin</div>
+            </div>
+            <div class="topbar-actions">
+                <span class="text-sm text-secondary" id="topbar-email"></span>
+            </div>
+        </header>
 
-<script
-    src="https://accounts.google.com/gsi/client"
-    async
-    defer>
-</script>
+        <!-- PAGE: OVERVIEW -->
+        <section class="page-section active" id="page-overview">
+            <div class="page-header">
+                <div><h2>Dashboard Overview</h2><p>System summary at a glance</p></div>
+                <button class="btn btn-secondary btn-sm" id="refresh-overview-btn">&#8635; Refresh</button>
+            </div>
+            <div class="grid-4 mb-24">
+                <div class="stat-card">
+                    <div class="stat-icon card-icon indigo"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg></div>
+                    <div class="stat-info"><div class="stat-value" id="stat-students">-</div><div class="stat-label">Students</div></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon card-icon purple"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a6 6 0 0 1 12 0v2"/></svg></div>
+                    <div class="stat-info"><div class="stat-value" id="stat-teachers">-</div><div class="stat-label">Teachers</div></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon card-icon amber"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/></svg></div>
+                    <div class="stat-info"><div class="stat-value" id="stat-groups">-</div><div class="stat-label">Groups</div></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon card-icon green"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg></div>
+                    <div class="stat-info"><div class="stat-value" id="stat-subjects">-</div><div class="stat-label">Subjects</div></div>
+                </div>
+            </div>
+            <div class="grid-2">
+                <div class="card">
+                    <div class="card-header"><h3><div class="card-icon indigo"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a6 6 0 0 1 12 0v2"/></svg></div> Quick Create Account</h3></div>
+                    <div class="alert" id="quick-create-alert"><span class="alert-icon"></span><span class="alert-msg"></span></div>
+                    <form id="create-user-form">
+                        <div class="form-grid">
+                            <div class="form-group"><label for="new-name">Full Name</label><input type="text" id="new-name" placeholder="e.g. John Doe" required></div>
+                            <div class="form-group"><label for="new-email">Email</label><input type="email" id="new-email" placeholder="user@university.edu" required></div>
+                            <div class="form-group full"><label for="new-role">Role</label>
+                                <select id="new-role" required><option value="">-- Select Role --</option><option value="STUDENT">Student</option><option value="TEACHER">Teacher</option></select>
+                            </div>
+                        </div>
+                        <div id="student-fields"><div class="form-grid">
+                            <div class="form-group"><label for="new-roll-no">Roll Number</label><input type="text" id="new-roll-no" placeholder="e.g. 2200290100001"></div>
+                            <div class="form-group"><label for="new-batch">Batch</label><input type="text" id="new-batch" placeholder="e.g. 2024"></div>
+                        </div></div>
+                        <div id="teacher-fields"><div class="form-group"><label for="new-employee-code">Employee Code</label><input type="text" id="new-employee-code" placeholder="e.g. EMP001"></div></div>
+                        <button type="submit" class="btn btn-primary">+ Create Account</button>
+                    </form>
+                </div>
+                <div class="card">
+                    <div class="card-header"><h3><div class="card-icon amber"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div> Quick Academic Period</h3></div>
+                    <div class="alert" id="quick-period-alert"><span class="alert-icon"></span><span class="alert-msg"></span></div>
+                    <form id="academic-period-form">
+                        <div class="form-group"><label for="academic-period-name">Period Name</label><input type="text" id="academic-period-name" placeholder="e.g. Semester 1 - 2026" required></div>
+                        <div class="form-grid">
+                            <div class="form-group"><label for="academic-period-start">Start Date</label><input type="date" id="academic-period-start" required></div>
+                            <div class="form-group"><label for="academic-period-end">End Date</label><input type="date" id="academic-period-end" required></div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">+ Create Period</button>
+                    </form>
+                </div>
+            </div>
+        </section>
 
+        <!-- PAGE: USERS -->
+        <section class="page-section" id="page-users">
+            <div class="page-header">
+                <div><h2>User Management</h2><p>Manage student &amp; teacher accounts</p></div>
+                <button class="btn btn-secondary btn-sm" id="refresh-users-btn">&#8635; Refresh</button>
+            </div>
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="tab-students-list">Students</button>
+                <button class="tab-btn" data-tab="tab-create-user">+ Create Account</button>
+            </div>
+            <div id="tab-students-list" class="tab-content">
+                <div class="card">
+                    <div class="card-header"><h3>All Students</h3></div>
+                    <div class="table-wrapper"><table>
+                        <thead><tr><th>Name</th><th>Email</th><th>Roll No</th><th>Batch</th><th>Actions</th></tr></thead>
+                        <tbody id="students-table-body"><tr><td colspan="5" class="text-muted text-sm" style="padding:24px;text-align:center;">Loading...</td></tr></tbody>
+                    </table></div>
+                </div>
+            </div>
+            <div id="tab-create-user" class="tab-content" style="display:none;">
+                <div class="card" style="max-width:600px;">
+                    <div class="card-header"><h3>Create Account</h3></div>
+                    <div class="alert" id="create-user-alert"><span class="alert-icon"></span><span class="alert-msg"></span></div>
+                    <form id="create-user-form-2">
+                        <div class="form-grid">
+                            <div class="form-group"><label for="new-name-2">Full Name</label><input type="text" id="new-name-2" placeholder="e.g. Jane Smith" required></div>
+                            <div class="form-group"><label for="new-email-2">Email</label><input type="email" id="new-email-2" placeholder="user@university.edu" required></div>
+                            <div class="form-group full"><label for="new-role-2">Role</label>
+                                <select id="new-role-2" required><option value="">-- Select Role --</option><option value="STUDENT">Student</option><option value="TEACHER">Teacher</option></select>
+                            </div>
+                        </div>
+                        <div id="student-fields-2"><div class="form-grid">
+                            <div class="form-group"><label for="new-roll-no-2">Roll Number</label><input type="text" id="new-roll-no-2" placeholder="e.g. 2200290100001"></div>
+                            <div class="form-group"><label for="new-batch-2">Batch</label><input type="text" id="new-batch-2" placeholder="e.g. 2024"></div>
+                        </div></div>
+                        <div id="teacher-fields-2"><div class="form-group"><label for="new-employee-code-2">Employee Code</label><input type="text" id="new-employee-code-2" placeholder="e.g. EMP001"></div></div>
+                        <button type="submit" class="btn btn-primary">+ Create Account</button>
+                    </form>
+                </div>
+            </div>
+        </section>
 
-<!-- ADMIN JS -->
+        <!-- PAGE: TEACHERS -->
+        <section class="page-section" id="page-teachers">
+            <div class="page-header">
+                <div><h2>Teachers</h2><p>All registered teacher accounts</p></div>
+                <button class="btn btn-secondary btn-sm" id="refresh-teachers-btn">&#8635; Refresh</button>
+            </div>
+            <div class="card">
+                <div class="table-wrapper"><table>
+                    <thead><tr><th>Name</th><th>Email</th><th>Employee Code</th><th>Actions</th></tr></thead>
+                    <tbody id="teachers-table-body"><tr><td colspan="4" class="text-muted text-sm" style="padding:24px;text-align:center;">Loading...</td></tr></tbody>
+                </table></div>
+            </div>
+        </section>
 
+        <!-- PAGE: ACADEMIC PERIODS -->
+        <section class="page-section" id="page-periods">
+            <div class="page-header"><div><h2>Academic Periods</h2><p>Manage semesters and sessions</p></div></div>
+            <div class="grid-2">
+                <div class="card">
+                    <div class="card-header"><h3><div class="card-icon amber">+</div> Create Period</h3></div>
+                    <div class="alert" id="period-alert"><span class="alert-icon"></span><span class="alert-msg"></span></div>
+                    <form id="academic-period-form-2">
+                        <div class="form-group"><label for="ap-name">Period Name</label><input type="text" id="ap-name" placeholder="e.g. Semester 1 - 2026" required></div>
+                        <div class="form-grid">
+                            <div class="form-group"><label for="ap-start">Start Date</label><input type="date" id="ap-start" required></div>
+                            <div class="form-group"><label for="ap-end">End Date</label><input type="date" id="ap-end" required></div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">+ Create Period</button>
+                    </form>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3>All Periods</h3>
+                        <button class="btn btn-secondary btn-sm" id="refresh-periods-btn">&#8635;</button>
+                    </div>
+                    <div class="table-wrapper"><table>
+                        <thead><tr><th>Name</th><th>Start</th><th>End</th></tr></thead>
+                        <tbody id="periods-table-body"><tr><td colspan="3" class="text-muted text-sm" style="padding:24px;text-align:center;">Loading...</td></tr></tbody>
+                    </table></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- PAGE: GROUPS -->
+        <section class="page-section" id="page-groups">
+            <div class="page-header"><div><h2>Groups</h2><p>Create groups and manage students &amp; subjects</p></div></div>
+            <div class="grid-2 mb-24">
+                <div class="card">
+                    <div class="card-header"><h3><div class="card-icon amber">+</div> Create Group</h3></div>
+                    <div class="alert" id="group-create-alert"><span class="alert-icon"></span><span class="alert-msg"></span></div>
+                    <form id="group-form">
+                        <div class="form-group"><label for="group-academic-period">Academic Period</label>
+                            <select id="group-academic-period" required><option value="">-- Select Period --</option></select></div>
+                        <div class="form-group"><label for="group-name">Group Name</label><input type="text" id="group-name" placeholder="e.g. G1, Sec-A" required></div>
+                        <button type="submit" class="btn btn-primary">+ Create Group</button>
+                    </form>
+                </div>
+                <div class="card">
+                    <div class="card-header"><h3><div class="card-icon green">+</div> Assign Subject to Group</h3></div>
+                    <div class="alert" id="assign-subject-alert"><span class="alert-icon"></span><span class="alert-msg"></span></div>
+                    <form id="assign-subject-form">
+                        <div class="form-group"><label for="assign-subject-group">Select Group</label>
+                            <select id="assign-subject-group" required><option value="">-- Select Group --</option></select></div>
+                        <div class="form-group"><label for="assign-subject-subject">Select Subject</label>
+                            <select id="assign-subject-subject" required><option value="">-- Select Subject --</option></select></div>
+                        <button type="submit" class="btn btn-success">Assign Subject</button>
+                    </form>
+                </div>
+            </div>
+            <div class="card mb-24">
+                <div class="card-header"><h3>Assign Student to Group</h3></div>
+                <div class="alert" id="assign-student-alert"><span class="alert-icon"></span><span class="alert-msg"></span></div>
+                <div class="form-grid" style="max-width:700px;">
+                    <div class="form-group"><label for="assign-student-group">Select Group</label>
+                        <select id="assign-student-group" required><option value="">-- Select Group --</option></select></div>
+                    <div class="form-group"><label for="assign-student-student">Select Student</label>
+                        <select id="assign-student-student" required><option value="">-- Select Student --</option></select></div>
+                </div>
+                <button class="btn btn-primary" id="assign-student-btn" style="margin-top:8px;">Assign Student</button>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <h3>All Groups</h3>
+                    <button class="btn btn-secondary btn-sm" id="refresh-groups-btn">&#8635; Refresh</button>
+                </div>
+                <div class="table-wrapper"><table>
+                    <thead><tr><th>Group Name</th><th>Academic Period</th><th>Actions</th></tr></thead>
+                    <tbody id="groups-table-body"><tr><td colspan="3" class="text-muted text-sm" style="padding:24px;text-align:center;">Loading...</td></tr></tbody>
+                </table></div>
+            </div>
+        </section>
+
+        <!-- PAGE: SUBJECTS -->
+        <section class="page-section" id="page-subjects">
+            <div class="page-header"><div><h2>Subjects</h2><p>Create and manage course subjects</p></div></div>
+            <div class="grid-2">
+                <div class="card">
+                    <div class="card-header"><h3><div class="card-icon green">+</div> Create Subject</h3></div>
+                    <div class="alert" id="subject-create-alert"><span class="alert-icon"></span><span class="alert-msg"></span></div>
+                    <form id="subject-form">
+                        <div class="form-group"><label for="subject-name">Subject Name</label><input type="text" id="subject-name" placeholder="e.g. Data Structures" required></div>
+                        <div class="form-group"><label for="subject-code">Subject Code</label><input type="text" id="subject-code" placeholder="e.g. CSE201" required></div>
+                        <button type="submit" class="btn btn-primary">+ Create Subject</button>
+                    </form>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3>All Subjects</h3>
+                        <button class="btn btn-secondary btn-sm" id="refresh-subjects-btn">&#8635;</button>
+                    </div>
+                    <div class="table-wrapper"><table>
+                        <thead><tr><th>Name</th><th>Code</th><th>Actions</th></tr></thead>
+                        <tbody id="subjects-table-body"><tr><td colspan="3" class="text-muted text-sm" style="padding:24px;text-align:center;">Loading...</td></tr></tbody>
+                    </table></div>
+                </div>
+            </div>
+        </section>
+    </div>
+</div>
+
+<!-- MODALS -->
+<div class="modal-overlay" id="modal-group-students">
+    <div class="modal" style="max-width:640px;">
+        <div class="modal-header"><h3 id="modal-group-students-title">Group Students</h3><button class="modal-close" data-close="modal-group-students">&#x2715;</button></div>
+        <div class="table-wrapper"><table>
+            <thead><tr><th>Name</th><th>Email</th><th>Roll No</th><th>Batch</th><th>Remove</th></tr></thead>
+            <tbody id="modal-group-students-body"></tbody>
+        </table></div>
+        <div class="modal-footer"><button class="btn btn-secondary" data-close="modal-group-students">Close</button></div>
+    </div>
+</div>
+<div class="modal-overlay" id="modal-group-subjects">
+    <div class="modal" style="max-width:560px;">
+        <div class="modal-header"><h3 id="modal-group-subjects-title">Group Subjects</h3><button class="modal-close" data-close="modal-group-subjects">&#x2715;</button></div>
+        <div class="table-wrapper"><table>
+            <thead><tr><th>Subject Name</th><th>Code</th><th>Remove</th></tr></thead>
+            <tbody id="modal-group-subjects-body"></tbody>
+        </table></div>
+        <div class="modal-footer"><button class="btn btn-secondary" data-close="modal-group-subjects">Close</button></div>
+    </div>
+</div>
+<div class="modal-overlay" id="modal-edit-user">
+    <div class="modal">
+        <div class="modal-header"><h3>Edit User</h3><button class="modal-close" data-close="modal-edit-user">&#x2715;</button></div>
+        <div class="alert" id="edit-user-alert"><span class="alert-icon"></span><span class="alert-msg"></span></div>
+        <input type="hidden" id="edit-user-id">
+        <div class="form-group"><label for="edit-user-name">Name</label><input type="text" id="edit-user-name" placeholder="Full name"></div>
+        <div class="form-group"><label for="edit-user-email">Email</label><input type="email" id="edit-user-email" placeholder="Email"></div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" data-close="modal-edit-user">Cancel</button>
+            <button class="btn btn-primary" id="save-edit-user-btn">Save Changes</button>
+        </div>
+    </div>
+</div>
+<div class="modal-overlay" id="modal-confirm-delete">
+    <div class="modal" style="max-width:400px;">
+        <div class="modal-header"><h3>Confirm Delete</h3><button class="modal-close" data-close="modal-confirm-delete">&#x2715;</button></div>
+        <p class="text-secondary" id="confirm-delete-msg" style="margin-bottom:8px;">Are you sure? This cannot be undone.</p>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" data-close="modal-confirm-delete">Cancel</button>
+            <button class="btn btn-danger" id="confirm-delete-btn">Delete</button>
+        </div>
+    </div>
+</div>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="js/admin.js"></script>
-
 </body>
 </html>

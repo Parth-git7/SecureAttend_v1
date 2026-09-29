@@ -534,9 +534,102 @@ router.post(
     }
 );
 
+
+
 ////// get requests ///////
 
-// get students in a group
+// GET all students
+router.get(
+    "/students",
+    authMiddleware,
+    roleMiddleware("ADMIN"),
+    async (req, res) => {
+        try {
+            const students = await Student.find()
+                .populate("userId", "name email createdAt")
+                .sort({ createdAt: -1 });
+
+            res.status(200).json({
+                students: students.map((s) => ({
+                    studentId: s._id,
+                    userId: s.userId._id,
+                    name: s.userId.name,
+                    email: s.userId.email,
+                    rollNo: s.rollNo,
+                    batch: s.batch,
+                    createdAt: s.userId.createdAt
+                }))
+            });
+        } catch (error) {
+            console.error("Get students error:", error);
+            res.status(500).json({ message: "Server error", error: error.message });
+        }
+    }
+);
+
+// GET all teachers
+router.get(
+    "/teachers",
+    authMiddleware,
+    roleMiddleware("ADMIN"),
+    async (req, res) => {
+        try {
+            const teachers = await Teacher.find()
+                .populate("userId", "name email createdAt")
+                .sort({ createdAt: -1 });
+
+            res.status(200).json({
+                teachers: teachers.map((t) => ({
+                    teacherId: t._id,
+                    userId: t.userId._id,
+                    name: t.userId.name,
+                    email: t.userId.email,
+                    employeeCode: t.employeeCode,
+                    createdAt: t.userId.createdAt
+                }))
+            });
+        } catch (error) {
+            console.error("Get teachers error:", error);
+            res.status(500).json({ message: "Server error", error: error.message });
+        }
+    }
+);
+
+// GET all subjects
+router.get(
+    "/subjects",
+    authMiddleware,
+    roleMiddleware("ADMIN"),
+    async (req, res) => {
+        try {
+            const subjects = await Subject.find().sort({ name: 1 });
+            res.status(200).json({ subjects });
+        } catch (error) {
+            console.error("Get subjects error:", error);
+            res.status(500).json({ message: "Server error", error: error.message });
+        }
+    }
+);
+
+// GET all groups (with academic period info)
+router.get(
+    "/groups",
+    authMiddleware,
+    roleMiddleware("ADMIN"),
+    async (req, res) => {
+        try {
+            const groups = await Group.find()
+                .populate("academicPeriodId", "name")
+                .sort({ createdAt: -1 });
+            res.status(200).json({ groups });
+        } catch (error) {
+            console.error("Get groups error:", error);
+            res.status(500).json({ message: "Server error", error: error.message });
+        }
+    }
+);
+
+// GET students in a group
 router.get(
     "/groups/:groupId/students",
     authMiddleware,
@@ -573,8 +666,10 @@ router.get(
                     academicPeriod: group.academicPeriodId
                 },
                 students: memberships.map((membership) => ({
+                    membershipId: membership._id,
                     studentId: membership.studentId._id,
                     rollNo: membership.studentId.rollNo,
+                    batch: membership.studentId.batch,
                     name: membership.studentId.userId.name,
                     email: membership.studentId.userId.email
                 }))
@@ -591,6 +686,168 @@ router.get(
     }
 );
 
+// DELETE - remove student from group
+router.delete(
+    "/groups/:groupId/students/:studentId",
+    authMiddleware,
+    roleMiddleware("ADMIN"),
+    async (req, res) => {
+        try {
+            const { groupId, studentId } = req.params;
+
+            const deleted = await StudentGroup.findOneAndDelete({ groupId, studentId });
+            if (!deleted) {
+                return res.status(404).json({ message: "Membership not found" });
+            }
+
+            res.status(200).json({ message: "Student removed from group successfully" });
+        } catch (error) {
+            console.error("Remove student from group error:", error);
+            res.status(500).json({ message: "Server error", error: error.message });
+        }
+    }
+);
+
+// DELETE - remove subject from group
+router.delete(
+    "/groups/:groupId/subjects/:subjectId",
+    authMiddleware,
+    roleMiddleware("ADMIN"),
+    async (req, res) => {
+        try {
+            const { groupId, subjectId } = req.params;
+
+            const deleted = await GroupSubject.findOneAndDelete({ groupId, subjectId });
+            if (!deleted) {
+                return res.status(404).json({ message: "Assignment not found" });
+            }
+
+            res.status(200).json({ message: "Subject removed from group successfully" });
+        } catch (error) {
+            console.error("Remove subject from group error:", error);
+            res.status(500).json({ message: "Server error", error: error.message });
+        }
+    }
+);
+
+// PUT - update user (name/email)
+router.put(
+    "/users/:userId",
+    authMiddleware,
+    roleMiddleware("ADMIN"),
+    async (req, res) => {
+        try {
+            const { userId } = req.params;
+            const { name, email } = req.body || {};
+
+            const user = await User.findById(userId);
+            if (!user) {
+                return res.status(404).json({ message: "User not found" });
+            }
+
+            if (name) user.name = name.trim();
+            if (email) {
+                const normalizedEmail = email.toLowerCase().trim();
+                const existing = await User.findOne({ email: normalizedEmail, _id: { $ne: userId } });
+                if (existing) {
+                    return res.status(409).json({ message: "Email already in use by another account" });
+                }
+                user.email = normalizedEmail;
+            }
+
+            await user.save();
+
+            res.status(200).json({
+                message: "User updated successfully",
+                user: { id: user._id, name: user.name, email: user.email, role: user.role }
+            });
+        } catch (error) {
+            console.error("Update user error:", error);
+            res.status(500).json({ message: "Server error", error: error.message });
+        }
+    }
+);
+
+// DELETE user (and their student/teacher profile)
+router.delete(
+    "/users/:userId",
+    authMiddleware,
+    roleMiddleware("ADMIN"),
+    async (req, res) => {
+        try {
+            const { userId } = req.params;
+
+            const user = await User.findById(userId);
+            if (!user) {
+                return res.status(404).json({ message: "User not found" });
+            }
+
+            if (user.role === "STUDENT") {
+                const student = await Student.findOne({ userId });
+                if (student) {
+                    await StudentGroup.deleteMany({ studentId: student._id });
+                    await Student.findByIdAndDelete(student._id);
+                }
+            }
+
+            if (user.role === "TEACHER") {
+                await Teacher.findOneAndDelete({ userId });
+            }
+
+            await User.findByIdAndDelete(userId);
+
+            res.status(200).json({ message: "User deleted successfully" });
+        } catch (error) {
+            console.error("Delete user error:", error);
+            res.status(500).json({ message: "Server error", error: error.message });
+        }
+    }
+);
+
+// DELETE subject
+router.delete(
+    "/subjects/:subjectId",
+    authMiddleware,
+    roleMiddleware("ADMIN"),
+    async (req, res) => {
+        try {
+            const { subjectId } = req.params;
+            const subject = await Subject.findByIdAndDelete(subjectId);
+            if (!subject) {
+                return res.status(404).json({ message: "Subject not found" });
+            }
+            // Remove group assignments
+            await GroupSubject.deleteMany({ subjectId });
+            res.status(200).json({ message: "Subject deleted successfully" });
+        } catch (error) {
+            console.error("Delete subject error:", error);
+            res.status(500).json({ message: "Server error", error: error.message });
+        }
+    }
+);
+
+// DELETE group
+router.delete(
+    "/groups/:groupId",
+    authMiddleware,
+    roleMiddleware("ADMIN"),
+    async (req, res) => {
+        try {
+            const { groupId } = req.params;
+            const group = await Group.findByIdAndDelete(groupId);
+            if (!group) {
+                return res.status(404).json({ message: "Group not found" });
+            }
+            // Remove related assignments
+            await StudentGroup.deleteMany({ groupId });
+            await GroupSubject.deleteMany({ groupId });
+            res.status(200).json({ message: "Group deleted successfully" });
+        } catch (error) {
+            console.error("Delete group error:", error);
+            res.status(500).json({ message: "Server error", error: error.message });
+        }
+    }
+);
 
 
 module.exports = router;
