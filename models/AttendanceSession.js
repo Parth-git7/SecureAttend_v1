@@ -8,6 +8,24 @@ const attendanceSessionSchema = new mongoose.Schema(
             required: true
         },
 
+        academicPeriodId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "AcademicPeriod",
+            required: true
+        },
+
+        branchId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Branch",
+            required: true
+        },
+
+        semesterId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Semester",
+            required: true
+        },
+
         groupId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "Group",
@@ -20,25 +38,13 @@ const attendanceSessionSchema = new mongoose.Schema(
             required: true
         },
 
-        roomCode: {
-            type: String,
-            required: true
-        },
-
         status: {
             type: String,
-            enum: ["ACTIVE", "CLOSED", "EXPIRED"],
+            enum: ["ACTIVE", "ENDED"],
             default: "ACTIVE"
-        },
-
-        expiresAt: {
-            type: Date,
-            required: true
         }
     },
-    {
-        timestamps: true
-    }
+    { timestamps: true }
 );
 
 module.exports = mongoose.model(
