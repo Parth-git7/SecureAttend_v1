@@ -332,7 +332,7 @@ async function handleStartAttendance(event) {
 
         displayActiveSession(data.session);
 
-        await loadGroupStudents(groupId);
+        startRosterPolling(data.session._id);
 
     } catch (error) {
         console.error("Start attendance error:", error);
@@ -384,28 +384,111 @@ function displayActiveSession(session) {
     `;
 }
 
-function displayStudents(students) {
+function displayActiveSession(session) {
+    const container = getOrCreateModule("active-session");
+
+    container.innerHTML = `
+        <h3>Active Attendance Session</h3>
+        <p><strong>Status:</strong> ${escapeHtml(session.status)}</p>
+        <p>
+            <strong>Room Code:</strong>
+            <span style="font-size: 24px; font-weight: bold;">
+                ${escapeHtml(session.roomCode)}
+            </span>
+        </p>
+        <p><strong>Expires At:</strong> ${new Date(session.expiresAt).toLocaleString()}</p>
+        <button id="end-session-btn" class="btn-danger">End Session</button>
+    `;
+
+    document
+        .getElementById("end-session-btn")
+        .addEventListener("click", () => handleEndSession(session._id));
+}
+
+async function handleEndSession(sessionId) {
+    stopRosterPolling();
+    const btn = document.getElementById("end-session-btn");
+    btn.disabled = true;
+
+    try {
+        const response = await fetch(`/api/attendance-sessions/${sessionId}/end`, {
+            method: "PATCH",
+            headers: { "Authorization": `Bearer ${getToken()}` }
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.message || "Failed to end session");
+        }
+
+        showMessage("Attendance session ended.", "success");
+
+        getOrCreateModule("active-session").innerHTML = `
+            <h3>Attendance Session</h3>
+            <p>Session ended.</p>
+        `;
+
+    } catch (error) {
+        console.error("End session error:", error);
+        btn.disabled = false;
+        showMessage(error.message, "error");
+    }
+}
+
+
+// =============================================================================================
+
+let rosterTimer = null;
+
+function startRosterPolling(sessionId) {
+    stopRosterPolling();
+
+    const tick = async () => {
+        try {
+            const data = await apiGet(`/api/attendance-sessions/${sessionId}/roster`);
+            displayRoster(data.students);
+
+            const expired = new Date(data.session.expiresAt) <= new Date();
+            if (data.session.status !== "ACTIVE" || expired) stopRosterPolling();
+        } catch (error) {
+            console.error("Roster polling error:", error);
+            stopRosterPolling();
+        }
+    };
+
+    tick();
+    rosterTimer = setInterval(tick, 3000);
+}
+
+
+
+function stopRosterPolling() {
+    if (rosterTimer) clearInterval(rosterTimer);
+    rosterTimer = null;
+}
+
+function displayRoster(students) {
     const container = getOrCreateModule("group-students");
 
     if (!students.length) {
-        container.innerHTML = `
-            <h3>Group Students</h3>
-            <p>No students found in this group.</p>
-        `;
+        container.innerHTML = `<h3>Group Students</h3><p>No students found in this group.</p>`;
         return;
     }
 
-    const rows = students.map((student, index) => `
+    const present = students.filter((s) => s.status === "PRESENT").length;
+
+    const rows = students.map((s, i) => `
         <tr>
-            <td style="padding:8px;">${index + 1}</td>
-            <td style="padding:8px;">${escapeHtml(student.rollNo)}</td>
-            <td style="padding:8px;">${escapeHtml(student.name)}</td>
-            <td style="padding:8px;">ABSENT</td>
+            <td style="padding:8px;">${i + 1}</td>
+            <td style="padding:8px;">${escapeHtml(s.rollNo)}</td>
+            <td style="padding:8px;">${escapeHtml(s.name)}</td>
+            <td style="padding:8px;">${escapeHtml(s.status)}</td>
         </tr>
     `).join("");
 
     container.innerHTML = `
-        <h3>Group Students</h3>
+        <h3>Group Students (${present}/${students.length} present)</h3>
         <table style="width: 100%; border-collapse: collapse;">
             <thead>
                 <tr>
@@ -457,6 +540,7 @@ function showLoginError(message) {
 // ============================================================
 
 function logout() {
+    stopRosterPolling();
     localStorage.removeItem("sa_teacher_token");
     localStorage.removeItem("sa_teacher_user");
 

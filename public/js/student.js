@@ -10,6 +10,22 @@ let currentUser = JSON.parse(
 );
 
 
+let pollTimer = null;
+let lastKey = null;
+
+function startPolling() {
+    stopPolling();
+    loadActiveSession();
+    pollTimer = setInterval(loadActiveSession, 3000);
+}
+
+function stopPolling() {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = null;
+    lastKey = null;
+}
+
+
 // ============================================================
 // PAGE LOAD
 // ============================================================
@@ -288,82 +304,90 @@ async function loadActiveSession() {
 // ============================================================
 
 function displayActiveSession(session) {
+    const key = session ? `${session.sessionId}:${session.myStatus}` : "none";
+    if (key === lastKey) return;
+    lastKey = key;
 
-    const container =
-        document.getElementById(
-            "session-container"
-        );
-
-
-    // No active session
+    const container = document.getElementById("session-container");
 
     if (!session) {
-
         container.innerHTML = `
-
             <div class="no-session">
-
                 <h4>No Active Attendance</h4>
-
-                <p>
-                    There is currently no attendance session
-                    available for your group.
-                </p>
-
-            </div>
-
-        `;
-
+                <p>There is currently no attendance session available for your group.</p>
+            </div>`;
         return;
-
     }
 
-
-    // Active session
+    let action;
+    if (session.myStatus === "PRESENT") {
+        action = `<p><strong>You are marked PRESENT.</strong></p>`;
+    } else if (session.myStatus === "JOINED") {
+        action = `
+            <p>Enter the room code shown by your teacher:</p>
+            <input id="room-code-input" type="text" maxlength="5" autocomplete="off">
+            <button id="submit-code-btn">Submit Code</button>`;
+    } else {
+        action = `<button id="join-session-btn">Join Attendance</button>`;
+    }
 
     container.innerHTML = `
-
         <div class="active-session">
+            <div class="session-status">ACTIVE</div>
+            <h3>${session.subject.name}</h3>
+            <p><strong>Subject Code:</strong> ${session.subject.code}</p>
+            <p><strong>Group:</strong> ${session.group.name}</p>
+            <p><strong>Session expires:</strong> ${new Date(session.expiresAt).toLocaleString()}</p>
+            ${action}
+            <p id="session-message" class="coming-soon"></p>
+        </div>`;
 
-            <div class="session-status">
-                ACTIVE
-            </div>
+    document.getElementById("join-session-btn")
+        ?.addEventListener("click", () => joinSession(session.sessionId));
+    document.getElementById("submit-code-btn")
+        ?.addEventListener("click", () => submitCode(session.sessionId));
+}
 
-            <h3>
-                ${session.subject.name}
-            </h3>
+async function postAction(path, body) {
+    const res = await fetch(path, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${getToken()}`
+        },
+        body: body ? JSON.stringify(body) : undefined
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || "Request failed");
+    return data;
+}
 
-            <p>
-                <strong>Subject Code:</strong>
-                ${session.subject.code}
-            </p>
+function setSessionMessage(text) {
+    const el = document.getElementById("session-message");
+    if (el) el.textContent = text;
+}
 
-            <p>
-                <strong>Group:</strong>
-                ${session.group.name}
-            </p>
+async function joinSession(sessionId) {
+    try {
+        await postAction(`/api/attendance-sessions/${sessionId}/join`);
+        lastKey = null;
+        await loadActiveSession();
+    } catch (error) {
+        setSessionMessage(error.message);
+    }
+}
 
-            <p>
-                <strong>Session expires:</strong>
-                ${new Date(
-                    session.expiresAt
-                ).toLocaleString()}
-            </p>
+async function submitCode(sessionId) {
+    const roomCode = document.getElementById("room-code-input").value.trim();
+    if (!roomCode) return setSessionMessage("Enter the room code.");
 
-            <button
-                id="join-session-btn"
-                disabled>
-                Join Attendance
-            </button>
-
-            <p class="coming-soon">
-                Joining will be enabled in the next step.
-            </p>
-
-        </div>
-
-    `;
-
+    try {
+        await postAction(`/api/attendance-sessions/${sessionId}/verify`, { roomCode });
+        lastKey = null;
+        await loadActiveSession();
+    } catch (error) {
+        setSessionMessage(error.message);
+    }
 }
 
 

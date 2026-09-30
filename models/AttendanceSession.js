@@ -37,6 +37,17 @@ const attendanceSessionSchema = new mongoose.Schema(
             ref: "Subject",
             required: true
         },
+        roomCode: {
+            type: String,
+            required: true,
+            uppercase: true,
+            trim: true
+        },
+
+        expiresAt: {
+            type: Date,
+            required: true
+        },
 
         status: {
             type: String,
@@ -46,6 +57,8 @@ const attendanceSessionSchema = new mongoose.Schema(
     },
     { timestamps: true }
 );
+
+attendanceSessionSchema.index({ groupId: 1, status: 1, expiresAt: 1 });
 
 module.exports = mongoose.model(
     "AttendanceSession",
