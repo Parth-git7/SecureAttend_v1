@@ -14,67 +14,37 @@ let currentUser = JSON.parse(
 // ============================================================
 
 document.addEventListener("DOMContentLoaded", () => {
-
     checkAuthState();
-
     setupEventListeners();
-
 });
 
 
 // ============================================================
-// AUTHENTICATION STATE
+// AUTH STATE
 // ============================================================
 
 function checkAuthState() {
-
-    if (
-        jwtToken &&
-        currentUser &&
-        currentUser.role === "TEACHER"
-    ) {
+    if (jwtToken && currentUser && currentUser.role === "TEACHER") {
         showDashboard();
     } else {
         showLogin();
     }
-
 }
-
-
-// ============================================================
-// SHOW LOGIN
-// ============================================================
 
 function showLogin() {
-
     document.getElementById("login-section").style.display = "block";
-
     document.getElementById("dashboard-section").style.display = "none";
-
 }
 
-
-// ============================================================
-// SHOW DASHBOARD
-// ============================================================
-
 function showDashboard() {
-
     document.getElementById("login-section").style.display = "none";
-
     document.getElementById("dashboard-section").style.display = "block";
 
-    document.getElementById("current-teacher-name").textContent =
-        currentUser.name;
-
-    document.getElementById("current-teacher-email").textContent =
-        currentUser.email;
-
-    document.getElementById("current-teacher-role").textContent =
-        currentUser.role;
+    document.getElementById("current-teacher-name").textContent = currentUser.name;
+    document.getElementById("current-teacher-email").textContent = currentUser.email;
+    document.getElementById("current-teacher-role").textContent = currentUser.role;
 
     loadAcademicPeriods();
-
 }
 
 
@@ -83,683 +53,371 @@ function showDashboard() {
 // ============================================================
 
 async function handleGoogleCredential(response) {
-
     try {
-
         const res = await fetch("/api/auth/google", {
-
             method: "POST",
-
-            headers: {
-                "Content-Type": "application/json"
-            },
-
-            body: JSON.stringify({
-                credential: response.credential
-            })
-
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ credential: response.credential })
         });
-
 
         const data = await res.json();
 
-
         if (!res.ok) {
-
-            throw new Error(
-                data.message || "Authentication failed"
-            );
-
+            throw new Error(data.message || "Authentication failed");
         }
-
 
         if (data.user.role !== "TEACHER") {
-
-            throw new Error(
-                "Access denied. Teacher privileges required."
-            );
-
+            throw new Error("Access denied. Teacher privileges required.");
         }
 
-
         jwtToken = data.token;
-
         currentUser = data.user;
 
-
-        localStorage.setItem(
-            "sa_teacher_token",
-            jwtToken
-        );
-
-        localStorage.setItem(
-            "sa_teacher_user",
-            JSON.stringify(currentUser)
-        );
-
+        localStorage.setItem("sa_teacher_token", jwtToken);
+        localStorage.setItem("sa_teacher_user", JSON.stringify(currentUser));
 
         checkAuthState();
 
-
     } catch (error) {
-
         console.error("Teacher login error:", error);
-
         showLoginError(error.message);
-
     }
-
 }
-
-
-// ============================================================
-// GET TOKEN
-// ============================================================
 
 function getToken() {
-
-    return localStorage.getItem(
-        "sa_teacher_token"
-    );
-
+    return localStorage.getItem("sa_teacher_token");
 }
 
 
 // ============================================================
-// LOAD ACADEMIC PERIODS
+// HELPERS
+// ============================================================
+
+// GET helper: adds token, handles expired session, throws on error
+async function apiGet(path) {
+    const response = await fetch(path, {
+        method: "GET",
+        headers: { "Authorization": `Bearer ${getToken()}` }
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+            logout();
+            throw new Error("Your session has expired. Please log in again.");
+        }
+        throw new Error(data.message || "Request failed");
+    }
+
+    return data;
+}
+
+function escapeHtml(str) {
+    if (str == null) return "";
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
+// Empty a dropdown back to its placeholder
+function resetSelect(id, placeholder, disabled = true) {
+    const select = document.getElementById(id);
+    select.innerHTML = "";
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = placeholder;
+    select.appendChild(option);
+    select.disabled = disabled;
+    return select;
+}
+
+function addOption(select, value, text) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = text;
+    select.appendChild(option);
+}
+
+
+// ============================================================
+// 1. ACADEMIC PERIOD (auto-selects the current one)
 // ============================================================
 
 async function loadAcademicPeriods() {
-
     try {
+        const data = await apiGet("/api/academic/academic-periods");
 
-        const token = getToken();
-
-        const response = await fetch(
-            "/api/academic/academic-periods",
-            {
-                method: "GET",
-
-                headers: {
-                    "Authorization": `Bearer ${token}`
-                }
-            }
-        );
-
-
-        const data = await response.json();
-
-
-        if (!response.ok) {
-
-            if (
-                response.status === 401 ||
-                response.status === 403
-            ) {
-
-                logout();
-
-                throw new Error(
-                    "Your session has expired. Please log in again."
-                );
-
-            }
-
-            throw new Error(
-                data.message ||
-                "Failed to load academic periods"
-            );
-
-        }
-
-
-        const academicPeriodSelect =
-            document.getElementById("academic-period");
-
-
-        academicPeriodSelect.innerHTML =
-            `<option value="">
-                Select Academic Period
-            </option>`;
-
+        const select = resetSelect("academic-period", "Select Academic Period", false);
 
         data.academicPeriods.forEach((period) => {
-
-            const option =
-                document.createElement("option");
-
-            option.value = period._id;
-
-            option.textContent = period.name;
-
-            academicPeriodSelect.appendChild(option);
-
+            addOption(select, period._id, period.name);
         });
 
+        if (data.currentPeriodId) {
+            select.value = data.currentPeriodId;
+            await handleAcademicPeriodChange();
+        }
 
     } catch (error) {
-
-        console.error(
-            "Academic period loading error:",
-            error
-        );
-
-        showMessage(
-            error.message,
-            "error"
-        );
-
+        console.error("Academic period loading error:", error);
+        showMessage(error.message, "error");
     }
+}
 
+async function handleAcademicPeriodChange() {
+    const periodId = document.getElementById("academic-period").value;
+
+    resetSelect("branch-select", "Select Branch");
+    resetSelect("semester-select", "Select Semester");
+    resetSelect("group-select", "Select Group");
+    resetSelect("subject-select", "Select Subject");
+
+    if (!periodId) return;
+
+    try {
+        const data = await apiGet(
+            `/api/academic/academic-periods/${periodId}/branches`
+        );
+
+        const select = resetSelect("branch-select", "Select Branch", false);
+
+        data.branches.forEach((branch) => {
+            addOption(select, branch._id, branch.name);
+        });
+
+        if (!data.branches.length) {
+            showMessage("No groups exist for this academic period yet.", "info");
+        }
+
+    } catch (error) {
+        console.error("Branch loading error:", error);
+        showMessage(error.message, "error");
+    }
 }
 
 
 // ============================================================
-// ACADEMIC PERIOD CHANGED
+// 2. BRANCH
 // ============================================================
 
-async function handleAcademicPeriodChange(event) {
+async function handleBranchChange() {
+    const periodId = document.getElementById("academic-period").value;
+    const branchId = document.getElementById("branch-select").value;
 
-    const academicPeriodId =
-        event.target.value;
+    resetSelect("semester-select", "Select Semester");
+    resetSelect("group-select", "Select Group");
+    resetSelect("subject-select", "Select Subject");
 
-
-    const groupSelect =
-        document.getElementById("group-select");
-
-    const subjectSelect =
-        document.getElementById("subject-select");
-
-
-    groupSelect.innerHTML =
-        `<option value="">
-            Select Group
-        </option>`;
-
-
-    subjectSelect.innerHTML =
-        `<option value="">
-            Select Subject
-        </option>`;
-
-
-    subjectSelect.disabled = true;
-
-
-    if (!academicPeriodId) {
-
-        groupSelect.disabled = true;
-
-        return;
-
-    }
-
+    if (!periodId || !branchId) return;
 
     try {
-
-        const token = getToken();
-
-
-        const response = await fetch(
-            `/api/academic/academic-periods/${academicPeriodId}/groups`,
-            {
-                method: "GET",
-
-                headers: {
-                    "Authorization": `Bearer ${token}`
-                }
-            }
+        const data = await apiGet(
+            `/api/academic/academic-periods/${periodId}/semesters?branchId=${branchId}`
         );
 
+        const select = resetSelect("semester-select", "Select Semester", false);
 
-        const data =
-            await response.json();
+        data.semesters.forEach((semester) => {
+            addOption(select, semester._id, semester.name);
+        });
+
+    } catch (error) {
+        console.error("Semester loading error:", error);
+        showMessage(error.message, "error");
+    }
+}
 
 
-        if (!response.ok) {
+// ============================================================
+// 3. SEMESTER
+// ============================================================
 
-            throw new Error(
-                data.message ||
-                "Failed to load groups"
-            );
+async function handleSemesterChange() {
+    const periodId = document.getElementById("academic-period").value;
+    const branchId = document.getElementById("branch-select").value;
+    const semesterId = document.getElementById("semester-select").value;
 
-        }
+    resetSelect("group-select", "Select Group");
+    resetSelect("subject-select", "Select Subject");
 
+    if (!periodId || !branchId || !semesterId) return;
+
+    try {
+        const data = await apiGet(
+            `/api/academic/academic-periods/${periodId}/groups?branchId=${branchId}&semesterId=${semesterId}`
+        );
+
+        const select = resetSelect("group-select", "Select Group", false);
 
         data.groups.forEach((group) => {
-
-            const option =
-                document.createElement("option");
-
-            option.value = group._id;
-
-            option.textContent = group.name;
-
-            groupSelect.appendChild(option);
-
+            addOption(select, group._id, group.name);
         });
 
-
-        groupSelect.disabled = false;
-
-
     } catch (error) {
-
-        console.error(
-            "Group loading error:",
-            error
-        );
-
-        showMessage(
-            error.message,
-            "error"
-        );
-
+        console.error("Group loading error:", error);
+        showMessage(error.message, "error");
     }
-
 }
 
 
 // ============================================================
-// GROUP CHANGED
+// 4. GROUP
 // ============================================================
 
-async function handleGroupChange(event) {
+async function handleGroupChange() {
+    const groupId = document.getElementById("group-select").value;
 
-    const groupId =
-        event.target.value;
+    resetSelect("subject-select", "Select Subject");
 
-
-    const subjectSelect =
-        document.getElementById("subject-select");
-
-
-    subjectSelect.innerHTML =
-        `<option value="">
-            Select Subject
-        </option>`;
-
-
-    subjectSelect.disabled = true;
-
-
-    if (!groupId) {
-
-        return;
-
-    }
-
+    if (!groupId) return;
 
     try {
+        const data = await apiGet(`/api/academic/groups/${groupId}/subjects`);
 
-        const token = getToken();
-
-
-        const response = await fetch(
-            `/api/academic/groups/${groupId}/subjects`,
-            {
-                method: "GET",
-
-                headers: {
-                    "Authorization": `Bearer ${token}`
-                }
-            }
-        );
-
-
-        const data =
-            await response.json();
-
-
-        if (!response.ok) {
-
-            throw new Error(
-                data.message ||
-                "Failed to load subjects"
-            );
-
-        }
-
+        const select = resetSelect("subject-select", "Select Subject", false);
 
         data.subjects.forEach((subject) => {
-
-            const option =
-                document.createElement("option");
-
-            option.value =
-                subject.subjectId;
-
-            option.textContent =
-                `${subject.name} (${subject.code})`;
-
-            subjectSelect.appendChild(option);
-
+            addOption(select, subject.subjectId, `${subject.name} (${subject.code})`);
         });
 
-
-        subjectSelect.disabled = false;
-
+        if (!data.subjects.length) {
+            showMessage("No subjects are assigned to this group.", "info");
+        }
 
     } catch (error) {
-
-        console.error(
-            "Subject loading error:",
-            error
-        );
-
-        showMessage(
-            error.message,
-            "error"
-        );
-
+        console.error("Subject loading error:", error);
+        showMessage(error.message, "error");
     }
-
 }
 
 
 // ============================================================
-// START ATTENDANCE
+// START ATTENDANCE (unchanged behaviour)
 // ============================================================
 
 async function handleStartAttendance(event) {
-
     event.preventDefault();
 
-
-    const groupId =
-        document.getElementById("group-select").value;
-
-    const subjectId =
-        document.getElementById("subject-select").value;
-
+    const groupId = document.getElementById("group-select").value;
+    const subjectId = document.getElementById("subject-select").value;
 
     if (!groupId || !subjectId) {
-
-        showMessage(
-            "Please select a group and subject.",
-            "error"
-        );
-
+        showMessage("Please select a group and subject.", "error");
         return;
-
     }
 
-
     try {
+        showMessage("Starting attendance session...", "info");
 
-        showMessage(
-            "Starting attendance session...",
-            "info"
-        );
+        const response = await fetch("/api/attendance-sessions", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${getToken()}`
+            },
+            body: JSON.stringify({ groupId, subjectId })
+        });
 
-
-        const token = getToken();
-
-
-        const response = await fetch(
-            "/api/attendance-sessions",
-            {
-                method: "POST",
-
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${token}`
-                },
-
-                body: JSON.stringify({
-                    groupId,
-                    subjectId
-                })
-
-            }
-        );
-
-
-        const data =
-            await response.json();
-
+        const data = await response.json();
 
         if (!response.ok) {
-
-            throw new Error(
-                data.message ||
-                "Failed to start attendance session"
-            );
-
+            throw new Error(data.message || "Failed to start attendance session");
         }
 
+        showMessage("Attendance session started successfully.", "success");
 
-        const session =
-            data.session;
-
-
-        showMessage(
-            "Attendance session started successfully.",
-            "success"
-        );
-
-
-        displayActiveSession(
-            session
-        );
-
+        displayActiveSession(data.session);
 
         await loadGroupStudents(groupId);
 
-
     } catch (error) {
-
-        console.error(
-            "Start attendance error:",
-            error
-        );
-
-        showMessage(
-            error.message,
-            "error"
-        );
-
+        console.error("Start attendance error:", error);
+        showMessage(error.message, "error");
     }
-
 }
-
-
-// ============================================================
-// LOAD GROUP STUDENTS
-// ============================================================
 
 async function loadGroupStudents(groupId) {
-
     try {
-
-        const token = getToken();
-
-
-        const response = await fetch(
-            `/api/academic/groups/${groupId}/students`,
-            {
-                method: "GET",
-
-                headers: {
-                    "Authorization": `Bearer ${token}`
-                }
-            }
-        );
-
-
-        const data =
-            await response.json();
-
-
-        if (!response.ok) {
-
-            throw new Error(
-                data.message ||
-                "Failed to load students"
-            );
-
-        }
-
-
-        displayStudents(
-            data.students
-        );
-
-
+        const data = await apiGet(`/api/academic/groups/${groupId}/students`);
+        displayStudents(data.students);
     } catch (error) {
-
-        console.error(
-            "Student loading error:",
-            error
-        );
-
-        showMessage(
-            error.message,
-            "error"
-        );
-
+        console.error("Student loading error:", error);
+        showMessage(error.message, "error");
     }
-
 }
 
 
 // ============================================================
-// DISPLAY ACTIVE SESSION
+// DISPLAY
 // ============================================================
 
-function displayActiveSession(session) {
-
-    let container =
-        document.getElementById("active-session");
-
+function getOrCreateModule(id) {
+    let container = document.getElementById(id);
 
     if (!container) {
-
-        container =
-            document.createElement("div");
-
-        container.id =
-            "active-session";
-
-        container.className =
-            "dashboard-module";
-
-        document
-            .getElementById("dashboard-section")
-            .appendChild(container);
-
+        container = document.createElement("div");
+        container.id = id;
+        container.className = "dashboard-module";
+        document.getElementById("dashboard-section").appendChild(container);
     }
 
+    return container;
+}
+
+function displayActiveSession(session) {
+    const container = getOrCreateModule("active-session");
 
     container.innerHTML = `
-
         <h3>Active Attendance Session</h3>
-
-        <p>
-            <strong>Status:</strong>
-            ${session.status}
-        </p>
-
+        <p><strong>Status:</strong> ${escapeHtml(session.status)}</p>
         <p>
             <strong>Room Code:</strong>
             <span style="font-size: 24px; font-weight: bold;">
-                ${session.roomCode}
+                ${escapeHtml(session.roomCode)}
             </span>
         </p>
-
-        <p>
-            <strong>Expires At:</strong>
-            ${new Date(session.expiresAt).toLocaleString()}
-        </p>
-
+        <p><strong>Expires At:</strong> ${new Date(session.expiresAt).toLocaleString()}</p>
     `;
-
 }
 
-
-// ============================================================
-// DISPLAY STUDENTS
-// ============================================================
-
 function displayStudents(students) {
-
-    let container =
-        document.getElementById("group-students");
-
-
-    if (!container) {
-
-        container =
-            document.createElement("div");
-
-        container.id =
-            "group-students";
-
-        container.className =
-            "dashboard-module";
-
-        document
-            .getElementById("dashboard-section")
-            .appendChild(container);
-
-    }
-
+    const container = getOrCreateModule("group-students");
 
     if (!students.length) {
-
         container.innerHTML = `
             <h3>Group Students</h3>
             <p>No students found in this group.</p>
         `;
-
         return;
-
     }
 
-
-    let rows = students.map((student, index) => {
-
-        return `
-            <tr>
-                <td>${index + 1}</td>
-                <td>${student.rollNo}</td>
-                <td>${student.name}</td>
-                <td>ABSENT</td>
-            </tr>
-        `;
-
-    }).join("");
-
+    const rows = students.map((student, index) => `
+        <tr>
+            <td style="padding:8px;">${index + 1}</td>
+            <td style="padding:8px;">${escapeHtml(student.rollNo)}</td>
+            <td style="padding:8px;">${escapeHtml(student.name)}</td>
+            <td style="padding:8px;">ABSENT</td>
+        </tr>
+    `).join("");
 
     container.innerHTML = `
-
         <h3>Group Students</h3>
-
         <table style="width: 100%; border-collapse: collapse;">
-
             <thead>
                 <tr>
                     <th style="text-align:left; padding:8px;">#</th>
-                    <th style="text-align:left; padding:8px;">
-                        Roll No.
-                    </th>
-                    <th style="text-align:left; padding:8px;">
-                        Name
-                    </th>
-                    <th style="text-align:left; padding:8px;">
-                        Status
-                    </th>
+                    <th style="text-align:left; padding:8px;">Roll No.</th>
+                    <th style="text-align:left; padding:8px;">Name</th>
+                    <th style="text-align:left; padding:8px;">Status</th>
                 </tr>
             </thead>
-
-            <tbody>
-                ${rows}
-            </tbody>
-
+            <tbody>${rows}</tbody>
         </table>
-
     `;
-
 }
 
 
@@ -768,82 +426,29 @@ function displayStudents(students) {
 // ============================================================
 
 function setupEventListeners() {
-
-    document
-        .getElementById("logout-btn")
-        .addEventListener(
-            "click",
-            logout
-        );
-
-
-    document
-        .getElementById("academic-period")
-        .addEventListener(
-            "change",
-            handleAcademicPeriodChange
-        );
-
-
-    document
-        .getElementById("group-select")
-        .addEventListener(
-            "change",
-            handleGroupChange
-        );
-
-
-    document
-        .getElementById("start-attendance-form")
-        .addEventListener(
-            "submit",
-            handleStartAttendance
-        );
-
+    document.getElementById("logout-btn").addEventListener("click", logout);
+    document.getElementById("academic-period").addEventListener("change", handleAcademicPeriodChange);
+    document.getElementById("branch-select").addEventListener("change", handleBranchChange);
+    document.getElementById("semester-select").addEventListener("change", handleSemesterChange);
+    document.getElementById("group-select").addEventListener("change", handleGroupChange);
+    document.getElementById("start-attendance-form").addEventListener("submit", handleStartAttendance);
 }
 
 
 // ============================================================
-// MESSAGE
+// MESSAGES
 // ============================================================
 
 function showMessage(message, type) {
-
-    const messageBox =
-        document.getElementById(
-            "attendance-message"
-        );
-
-
-    messageBox.textContent =
-        message;
-
-
-    messageBox.className =
-        `message ${type}`;
-
+    const messageBox = document.getElementById("attendance-message");
+    messageBox.textContent = message;
+    messageBox.className = `message ${type}`;
 }
 
-
-// ============================================================
-// LOGIN ERROR
-// ============================================================
-
 function showLoginError(message) {
-
-    const errorDiv =
-        document.getElementById(
-            "login-error"
-        );
-
-
-    errorDiv.textContent =
-        message;
-
-
-    errorDiv.style.display =
-        "block";
-
+    const errorDiv = document.getElementById("login-error");
+    errorDiv.textContent = message;
+    errorDiv.style.display = "block";
 }
 
 
@@ -852,21 +457,11 @@ function showLoginError(message) {
 // ============================================================
 
 function logout() {
-
-    localStorage.removeItem(
-        "sa_teacher_token"
-    );
-
-    localStorage.removeItem(
-        "sa_teacher_user"
-    );
-
+    localStorage.removeItem("sa_teacher_token");
+    localStorage.removeItem("sa_teacher_user");
 
     jwtToken = null;
-
     currentUser = null;
 
-
     showLogin();
-
 }

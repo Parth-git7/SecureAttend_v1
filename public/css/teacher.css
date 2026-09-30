@@ -77,13 +77,27 @@ button:hover {
 .message {
     padding: 10px;
     margin-bottom: 15px;
-    display: none;
     border: 1px solid transparent;
+}
+
+.message:empty {
+    display: none;
 }
 
 .message.info {
     background-color: #d9edf7;
     border-color: #bce8f1;
     color: #31708f;
-    display: block;
+}
+
+.message.success {
+    background-color: #dff0d8;
+    border-color: #d6e9c6;
+    color: #3c763d;
+}
+
+.message.error {
+    background-color: #f2dede;
+    border-color: #ebcccc;
+    color: #a94442;
 }

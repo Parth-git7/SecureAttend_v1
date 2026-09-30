@@ -1,4 +1,7 @@
 const express = require("express");
+const mongoose = require("mongoose");
+const Branch = require("../models/Branch");
+const Semester = require("../models/Semester");
 const User = require("../models/User");
 const Student = require("../models/Student");
 const Teacher = require("../models/Teacher");
@@ -267,52 +270,124 @@ router.post(
     }
 );
 
+// CREATE branch
+router.post(
+    "/branches",
+    authMiddleware,
+    roleMiddleware("ADMIN"),
+    async (req, res) => {
+        try {
+            const { name, code } = req.body || {};
 
+            if (!name || !code) {
+                return res.status(400).json({
+                    message: "Branch name and code are required"
+                });
+            }
 
-// Group creation API, Creating Groups
+            const trimmedName = String(name).trim();
+            const trimmedCode = String(code).trim().toUpperCase();
+
+            if (!trimmedName || !trimmedCode) {
+                return res.status(400).json({
+                    message: "Branch name and code cannot be empty"
+                });
+            }
+
+            const existingBranch = await Branch.findOne({ code: trimmedCode });
+
+            if (existingBranch) {
+                return res.status(409).json({
+                    message: "A branch with this code already exists"
+                });
+            }
+
+            const branch = await Branch.create({
+                name: trimmedName,
+                code: trimmedCode
+            });
+
+            res.status(201).json({
+                message: "Branch created successfully",
+                branch
+            });
+
+        } catch (error) {
+            if (error.code === 11000) {
+                return res.status(409).json({
+                    message: "A branch with this code already exists"
+                });
+            }
+
+            console.error("Branch creation error:", error);
+            res.status(500).json({ message: "Server error", error: error.message });
+        }
+    }
+);
+
+// CREATE groups
 router.post(
     "/groups",
     authMiddleware,
     roleMiddleware("ADMIN"),
     async (req, res) => {
         try {
-            const { name, academicPeriodId } = req.body || {};
+            const { name, academicPeriodId, branchId, semesterId } = req.body || {};
 
-            // Validate required fields
-            if (!name || !academicPeriodId) {
+            if (!name || !academicPeriodId || !branchId || !semesterId) {
                 return res.status(400).json({
-                    message: "Group name and academic period are required"
+                    message: "Group name, academic period, branch and semester are required"
                 });
             }
 
-            // Check whether the academic period exists
-            const academicPeriod = await AcademicPeriod.findById(
-                academicPeriodId
-            );
-
-            if (!academicPeriod) {
-                return res.status(404).json({
-                    message: "Academic period not found"
+            const trimmedName = String(name).trim();
+            if (!trimmedName) {
+                return res.status(400).json({
+                    message: "Group name cannot be empty"
                 });
             }
 
-            // Check duplicate group inside the same academic period
+            // Reject malformed ids before hitting the database
+            const idChecks = { academicPeriodId, branchId, semesterId };
+            for (const [field, value] of Object.entries(idChecks)) {
+                if (!mongoose.isValidObjectId(value)) {
+                    return res.status(400).json({
+                        message: `Invalid ${field}`
+                    });
+                }
+            }
+
+            if (!(await AcademicPeriod.findById(academicPeriodId))) {
+                return res.status(404).json({ message: "Academic period not found" });
+            }
+
+            if (!(await Branch.findById(branchId))) {
+                return res.status(404).json({ message: "Branch not found" });
+            }
+
+            if (!(await Semester.findById(semesterId))) {
+                return res.status(404).json({ message: "Semester not found" });
+            }
+
             const existingGroup = await Group.findOne({
-                name: name.trim(),
-                academicPeriodId
+                name: trimmedName,
+                academicPeriodId,
+                branchId,
+                semesterId
             });
 
             if (existingGroup) {
                 return res.status(409).json({
                     message:
-                        "This group already exists in this academic period"
+                        "This group already exists for this academic period, branch and semester"
                 });
             }
 
-            // Create group
             const group = await Group.create({
-                name: name.trim(),
-                academicPeriodId
+                name: trimmedName,
+                academicPeriodId,
+                branchId,
+                semesterId
             });
 
             res.status(201).json({
@@ -321,6 +396,14 @@ router.post(
             });
 
         } catch (error) {
+            // Two simultaneous requests can both pass findOne; the unique index catches the second
+            if (error.code === 11000) {
+                return res.status(409).json({
+                    message:
+                        "This group already exists for this academic period, branch and semester"
+                });
+            }
+
             console.error("Group creation error:", error);
 
             res.status(500).json({
@@ -330,9 +413,6 @@ router.post(
         }
     }
 );
-
-
-
 
 // adding students into groups 
 router.post(
@@ -611,16 +691,35 @@ router.get(
     }
 );
 
-// GET all groups (with academic period info)
+
+// GET groups - optionally filtered by academicPeriodId, branchId, semesterId
 router.get(
     "/groups",
     authMiddleware,
     roleMiddleware("ADMIN"),
     async (req, res) => {
         try {
-            const groups = await Group.find()
+            const filter = {};
+
+            for (const key of ["academicPeriodId", "branchId", "semesterId"]) {
+                const value = req.query[key];
+                if (value) {
+                    if (!mongoose.isValidObjectId(value)) {
+                        return res.status(400).json({
+                            message: `Invalid ${key}`
+                        });
+                    }
+                    filter[key] = value;
+                }
+            }
+
+            const groups = await Group.find(filter)
                 .populate("academicPeriodId", "name")
-                .sort({ createdAt: -1 });
+                .populate("branchId", "name code")
+                .populate("semesterId", "number name")
+                .collation({ locale: "en", numericOrdering: true })
+                .sort({ name: 1 });
+
             res.status(200).json({ groups });
         } catch (error) {
             console.error("Get groups error:", error);
@@ -685,6 +784,24 @@ router.get(
         }
     }
 );
+
+// GET all branches
+router.get(
+    "/branches",
+    authMiddleware,
+    roleMiddleware("ADMIN"),
+    async (req, res) => {
+        try {
+            const branches = await Branch.find().sort({ name: 1 });
+            res.status(200).json({ branches });
+        } catch (error) {
+            console.error("Get branches error:", error);
+            res.status(500).json({ message: "Server error", error: error.message });
+        }
+    }
+);
+
+
 
 // DELETE - remove student from group
 router.delete(

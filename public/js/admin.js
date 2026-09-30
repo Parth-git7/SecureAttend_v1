@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // STATE
 // ============================================================
 
@@ -202,6 +202,8 @@ function closeModal(id) {
 async function loadDropdowns() {
     await Promise.all([
         loadAcademicPeriodsForGroup(),
+        loadBranches(),
+        loadSemestersForGroup(),
         loadGroupsForDropdowns(),
         loadSubjectsForDropdowns(),
         loadStudentsForDropdowns()
@@ -230,10 +232,14 @@ async function loadGroupsForDropdowns() {
         selects.forEach(id => {
             const sel = document.getElementById(id);
             if (!sel) return;
-            sel.innerHTML = `<option value="">â€” Select Group â€”</option>`;
+            sel.innerHTML = `<option value="">-- Select Group --</option>`;
             data.groups.forEach(g => {
-                const period = g.academicPeriodId?.name ? ` (${g.academicPeriodId.name})` : "";
-                sel.innerHTML += `<option value="${g._id}">${g.name}${period}</option>`;
+                const parts = [
+                    g.academicPeriodId?.name,
+                    g.branchId?.code,
+                    g.semesterId ? `Sem ${g.semesterId.number}` : null
+                ].filter(Boolean).join(", ");
+                sel.innerHTML += `<option value="${g._id}">${esc(g.name)}${parts ? ` (${esc(parts)})` : ""}</option>`;
             });
         });
     } catch (e) { console.error("Load groups for dropdown:", e); }
@@ -385,27 +391,29 @@ async function loadAcademicPeriods() {
 
 async function loadGroups() {
     const tbody = document.getElementById("groups-table-body");
-    tbody.innerHTML = `<tr><td colspan="3" class="text-muted text-sm" style="padding:24px;text-align:center;">Loadingâ€¦</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" class="text-muted text-sm" style="padding:24px;text-align:center;">Loading...</td></tr>`;
     try {
         const data = await apiRequest("GET", "/api/admin/groups");
         if (!data.groups.length) {
-            tbody.innerHTML = `<tr><td colspan="3"><div class="empty-state"><div class="empty-state-icon">ðŸ—‚ï¸</div><p>No groups yet.</p></div></td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state"><p>No groups yet.</p></div></td></tr>`;
             return;
         }
         tbody.innerHTML = data.groups.map(g => `
             <tr>
                 <td class="font-medium">${esc(g.name)}</td>
-                <td class="td-secondary">${esc(g.academicPeriodId?.name || "â€”")}</td>
+                <td class="td-secondary">${esc(g.academicPeriodId?.name || "-")}</td>
+                <td class="td-secondary">${esc(g.branchId?.name || "-")}</td>
+                <td class="td-secondary">${esc(g.semesterId?.name || "-")}</td>
                 <td>
                     <div class="flex gap-8">
-                        <button class="btn btn-secondary btn-sm" onclick="viewGroupStudents('${g._id}','${esc(g.name)}')">ðŸ‘¥ Students</button>
-                        <button class="btn btn-secondary btn-sm" onclick="viewGroupSubjects('${g._id}','${esc(g.name)}')">ðŸ“š Subjects</button>
-                        <button class="btn btn-danger btn-sm btn-icon" title="Delete Group" onclick="confirmDelete('Delete group ${esc(g.name)}?', () => deleteGroup('${g._id}'))">ðŸ—‘ï¸</button>
+                        <button class="btn btn-secondary btn-sm" onclick="viewGroupStudents('${g._id}','${esc(g.name)}')">Students</button>
+                        <button class="btn btn-secondary btn-sm" onclick="viewGroupSubjects('${g._id}','${esc(g.name)}')">Subjects</button>
+                        <button class="btn btn-danger btn-sm btn-icon" title="Delete Group" onclick="confirmDelete('Delete group ${esc(g.name)}?', () => deleteGroup('${g._id}'))">X</button>
                     </div>
                 </td>
             </tr>`).join("");
     } catch (e) {
-        tbody.innerHTML = `<tr><td colspan="3" class="text-muted text-sm" style="padding:16px;text-align:center;">Error: ${esc(e.message)}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="text-muted text-sm" style="padding:16px;text-align:center;">Error: ${esc(e.message)}</td></tr>`;
     }
 }
 
@@ -682,15 +690,72 @@ function handleRoleChange(suffix) {
 async function handleCreateGroup(event) {
     event.preventDefault();
     const academicPeriodId = document.getElementById("group-academic-period").value;
+    const branchId = document.getElementById("group-branch").value;
+    const semesterId = document.getElementById("group-semester").value;
     const name = document.getElementById("group-name").value.trim();
     try {
-        const data = await apiRequest("POST", "/api/admin/groups", { name, academicPeriodId });
+        const data = await apiRequest("POST", "/api/admin/groups", { name, academicPeriodId, branchId, semesterId });
         showAlert("group-create-alert", "success", data.message || "Group created.");
         document.getElementById("group-form").reset();
         await loadGroupsForDropdowns();
         loadGroups();
     } catch (e) {
         showAlert("group-create-alert", "error", e.message);
+    }
+}
+
+
+// ============================================================
+// BRANCHES + SEMESTERS
+// ============================================================
+
+async function loadBranches() {
+    const tbody = document.getElementById("branches-table-body");
+    const sel = document.getElementById("group-branch");
+    try {
+        const data = await apiRequest("GET", "/api/admin/branches");
+
+        if (sel) {
+            sel.innerHTML = `<option value="">-- Select Branch --</option>` +
+                data.branches.map(b => `<option value="${b._id}">${esc(b.name)} (${esc(b.code)})</option>`).join("");
+        }
+
+        if (tbody) {
+            tbody.innerHTML = data.branches.length
+                ? data.branches.map(b => `
+                    <tr>
+                        <td class="font-medium">${esc(b.name)}</td>
+                        <td><span class="badge badge-active">${esc(b.code)}</span></td>
+                    </tr>`).join("")
+                : `<tr><td colspan="2"><div class="empty-state"><p>No branches yet.</p></div></td></tr>`;
+        }
+    } catch (e) {
+        console.error("Load branches:", e);
+        if (tbody) tbody.innerHTML = `<tr><td colspan="2" class="text-muted text-sm" style="padding:16px;text-align:center;">Error: ${esc(e.message)}</td></tr>`;
+    }
+}
+
+async function loadSemestersForGroup() {
+    try {
+        const data = await apiRequest("GET", "/api/academic/semesters");
+        const sel = document.getElementById("group-semester");
+        if (!sel) return;
+        sel.innerHTML = `<option value="">-- Select Semester --</option>` +
+            data.semesters.map(s => `<option value="${s._id}">${esc(s.name)}</option>`).join("");
+    } catch (e) { console.error("Load semesters:", e); }
+}
+
+async function handleCreateBranch(event) {
+    event.preventDefault();
+    const name = document.getElementById("branch-name").value.trim();
+    const code = document.getElementById("branch-code").value.trim();
+    try {
+        const data = await apiRequest("POST", "/api/admin/branches", { name, code });
+        showAlert("branch-create-alert", "success", data.message || "Branch created.");
+        document.getElementById("branch-form").reset();
+        await loadBranches();
+    } catch (e) {
+        showAlert("branch-create-alert", "error", e.message);
     }
 }
 
@@ -856,6 +921,7 @@ function setupEventListeners() {
 
     // --- Groups page ---
     document.getElementById("group-form").addEventListener("submit", handleCreateGroup);
+    document.getElementById("branch-form").addEventListener("submit", handleCreateBranch);
     document.getElementById("assign-subject-form").addEventListener("submit", handleAssignSubject);
     document.getElementById("assign-student-btn").addEventListener("click", assignStudentToGroup);
 

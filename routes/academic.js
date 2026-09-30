@@ -1,8 +1,10 @@
 const express = require("express");
-
+const mongoose = require("mongoose");
+const Branch = require("../models/Branch");
 const Group = require("../models/Group");
 const GroupSubject = require("../models/GroupSubject");
 const AcademicPeriod = require("../models/AcademicPeriod");
+const Semester = require("../models/Semester");
 
 const authMiddleware = require("../middleware/authMiddleware");
 const roleMiddleware = require("../middleware/roleMiddleware");
@@ -10,6 +12,7 @@ const roleMiddleware = require("../middleware/roleMiddleware");
 const StudentGroup = require("../models/StudentGroup");
 const Student = require("../models/Student");
 const User = require("../models/User");
+
 
 const router = express.Router();
 
@@ -64,7 +67,7 @@ router.get(
 );
 
 
-// get academic periods
+// get academic periods (+ which one is "current" academic period)
 router.get(
     "/academic-periods",
     authMiddleware,
@@ -74,8 +77,17 @@ router.get(
             const academicPeriods = await AcademicPeriod.find()
                 .sort({ startDate: -1 });
 
+            const now = new Date();
+            const current =
+                academicPeriods.find(
+                    (p) => p.startDate <= now && now <= p.endDate
+                ) ||
+                academicPeriods[0] ||
+                null;
+
             res.status(200).json({
-                academicPeriods
+                academicPeriods,
+                currentPeriodId: current ? current._id : null
             });
 
         } catch (error) {
@@ -89,8 +101,7 @@ router.get(
     }
 );
 
-
-// get groups from academic period id
+// get groups from academic period id (optional ?branchId=&semesterId=)
 router.get(
     "/academic-periods/:academicPeriodId/groups",
     authMiddleware,
@@ -98,11 +109,15 @@ router.get(
     async (req, res) => {
         try {
             const { academicPeriodId } = req.params;
+            const { branchId, semesterId } = req.query;
 
-            // Check whether the academic period exists
-            const academicPeriod = await AcademicPeriod.findById(
-                academicPeriodId
-            );
+            for (const [key, value] of Object.entries({ academicPeriodId, branchId, semesterId })) {
+                if (value && !mongoose.isValidObjectId(value)) {
+                    return res.status(400).json({ message: `Invalid ${key}` });
+                }
+            }
+
+            const academicPeriod = await AcademicPeriod.findById(academicPeriodId);
 
             if (!academicPeriod) {
                 return res.status(404).json({
@@ -110,10 +125,13 @@ router.get(
                 });
             }
 
-            // Find groups belonging to this academic period
-            const groups = await Group.find({
-                academicPeriodId
-            }).sort({ name: 1 });
+            const filter = { academicPeriodId };
+            if (branchId) filter.branchId = branchId;
+            if (semesterId) filter.semesterId = semesterId;
+
+            const groups = await Group.find(filter)
+                .collation({ locale: "en", numericOrdering: true })
+                .sort({ name: 1 });
 
             res.status(200).json({
                 academicPeriod: {
@@ -135,7 +153,7 @@ router.get(
     }
 );
 
-// get students of a group 
+// GET students of a group 
 router.get(
     "/groups/:groupId/students",
     authMiddleware,
@@ -176,4 +194,81 @@ router.get(
     }
 );
 
+// GET all (seeded) semesters
+router.get(
+    "/semesters",
+    authMiddleware,
+    roleMiddleware("ADMIN", "TEACHER"),
+    async (req, res) => {
+        try {
+            const semesters = await Semester.find().sort({ number: 1 });
+            res.status(200).json({ semesters });
+        } catch (error) {
+            console.error("Get semesters error:", error);
+            res.status(500).json({ message: "Server error", error: error.message });
+        }
+    }
+);
+
+// GET branches that actually have groups in this academic period
+router.get(
+    "/academic-periods/:academicPeriodId/branches",
+    authMiddleware,
+    roleMiddleware("ADMIN", "TEACHER"),
+    async (req, res) => {
+        try {
+            const { academicPeriodId } = req.params;
+
+            if (!mongoose.isValidObjectId(academicPeriodId)) {
+                return res.status(400).json({ message: "Invalid academicPeriodId" });
+            }
+
+            const branchIds = await Group.distinct("branchId", { academicPeriodId });
+
+            const branches = await Branch.find({ _id: { $in: branchIds } })
+                .sort({ name: 1 });
+
+            res.status(200).json({ branches });
+
+        } catch (error) {
+            console.error("Get period branches error:", error);
+            res.status(500).json({ message: "Server error", error: error.message });
+        }
+    }
+);
+
+// GET semesters that actually have groups for period + branch
+router.get(
+    "/academic-periods/:academicPeriodId/semesters",
+    authMiddleware,
+    roleMiddleware("ADMIN", "TEACHER"),
+    async (req, res) => {
+        try {
+            const { academicPeriodId } = req.params;
+            const { branchId } = req.query;
+
+            for (const [key, value] of Object.entries({ academicPeriodId, branchId })) {
+                if (value && !mongoose.isValidObjectId(value)) {
+                    return res.status(400).json({ message: `Invalid ${key}` });
+                }
+            }
+
+            const filter = { academicPeriodId };
+            if (branchId) filter.branchId = branchId;
+
+            const semesterIds = await Group.distinct("semesterId", filter);
+
+            const semesters = await Semester.find({ _id: { $in: semesterIds } })
+                .sort({ number: 1 });
+
+            res.status(200).json({ semesters });
+
+        } catch (error) {
+            console.error("Get period semesters error:", error);
+            res.status(500).json({ message: "Server error", error: error.message });
+        }
+    }
+);
+
 module.exports = router;
+
