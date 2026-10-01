@@ -28,6 +28,12 @@ const attendanceRecordSchema = new mongoose.Schema(
                 min: 0
             }
         },
+        locationCheck: {
+            distanceMeters: {
+                type: Number,
+                min: 0
+            }
+        },
 
         status : {
             type : String,

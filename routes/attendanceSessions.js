@@ -10,6 +10,8 @@ const GroupSubject = require("../models/GroupSubject");
 const AttendanceRecord = require("../models/AttendanceRecord");
 const authMiddleware = require("../middleware/authMiddleware");
 const roleMiddleware = require("../middleware/roleMiddleware");
+const { distanceMeters } = require("../utils/geo");
+
 
 const router = express.Router();
 
@@ -277,9 +279,22 @@ router.post("/:sessionId/verify", authMiddleware, roleMiddleware("STUDENT"), asy
             return res.status(400).json({ message: "Incorrect room code" });
         }
 
+        let distance = null;
+        if (session.teacherLocation && session.teacherLocation.latitude != null) {
+            distance = Math.round(distanceMeters(session.teacherLocation, location) * 10) / 10;
+            console.log(`[location] session ${sessionId} student ${student._id} distance=${distance}m teacherAcc=${session.teacherLocation.accuracy} studentAcc=${location.accuracy}`);
+        }
+
         await AttendanceRecord.updateOne(
             { _id: record._id, status: "JOINED" },
-            { $set: { status: "PRESENT", markedAt: new Date(), studentLocation: location } }
+            {
+                $set: {
+                    status: "PRESENT",
+                    markedAt: new Date(),
+                    studentLocation: location,
+                    "locationCheck.distanceMeters": distance
+                }
+            }
         );
 
         res.status(200).json({ message: "Marked present", status: "PRESENT" });
