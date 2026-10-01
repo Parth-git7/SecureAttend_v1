@@ -142,6 +142,33 @@ function addOption(select, value, text) {
     select.appendChild(option);
 }
 
+function getTeacherLocation() {
+    return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+            reject(new Error("Geolocation is not supported by this browser."));
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                resolve({
+                    latitude: position.coords.latitude,
+                    longitude: position.coords.longitude,
+                    accuracy: position.coords.accuracy
+                });
+            },
+            (error) => {
+                const messages = {
+                    1: "Location permission denied. Allow location access to start attendance.",
+                    2: "Location unavailable. Check GPS/network and try again.",
+                    3: "Location request timed out. Try again."
+                };
+                reject(new Error(messages[error.code] || "Could not get location."));
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+    });
+}
 
 // ============================================================
 // 1. ACADEMIC PERIOD (auto-selects the current one)
@@ -311,6 +338,9 @@ async function handleStartAttendance(event) {
     }
 
     try {
+        showMessage("Getting your location...", "info");
+        const teacherLocation = await getTeacherLocation();
+
         showMessage("Starting attendance session...", "info");
 
         const response = await fetch("/api/attendance-sessions", {
@@ -319,8 +349,9 @@ async function handleStartAttendance(event) {
                 "Content-Type": "application/json",
                 "Authorization": `Bearer ${getToken()}`
             },
-            body: JSON.stringify({ groupId, subjectId })
+            body: JSON.stringify({ groupId, subjectId, teacherLocation })
         });
+
 
         const data = await response.json();
 

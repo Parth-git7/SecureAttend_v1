@@ -37,6 +37,22 @@ const attendanceSessionSchema = new mongoose.Schema(
             ref: "Subject",
             required: true
         },
+        teacherLocation: {
+            latitude: {
+                type: Number,
+                min: -90,
+                max: 90
+            },
+            longitude: {
+                type: Number,
+                min: -180,
+                max: 180
+            },
+            accuracy: {
+                type: Number,
+                min: 0
+            }
+        },
         roomCode: {
             type: String,
             required: true,

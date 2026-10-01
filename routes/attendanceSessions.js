@@ -13,6 +13,19 @@ const roleMiddleware = require("../middleware/roleMiddleware");
 
 const router = express.Router();
 
+// location validator function
+function parseLocation(loc) {
+    if (!loc || typeof loc !== "object") return null;
+
+    const { latitude, longitude, accuracy } = loc;
+
+    if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) return null;
+    if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) return null;
+    if (accuracy !== undefined && (!Number.isFinite(accuracy) || accuracy < 0)) return null;
+
+    return { latitude, longitude, accuracy };
+}
+
 // Create attendance session
 router.post(
     "/",
@@ -20,7 +33,7 @@ router.post(
     roleMiddleware("TEACHER"),
     async (req, res) => {
         try {
-            const { groupId, subjectId } = req.body || {};
+            const { groupId, subjectId, teacherLocation } = req.body || {};
 
             if (!groupId || !subjectId) {
                 return res.status(400).json({
@@ -32,6 +45,13 @@ router.post(
                 if (!mongoose.isValidObjectId(value)) {
                     return res.status(400).json({ message: `Invalid ${field}` });
                 }
+            }
+
+            const location = parseLocation(teacherLocation);
+            if (!location) {
+                return res.status(400).json({
+                    message: "A valid teacher location is required"
+                });
             }
 
             const teacher = await Teacher.findOne({ userId: req.user.userId });
@@ -65,6 +85,7 @@ router.post(
                 semesterId: group.semesterId,
                 groupId: group._id,
                 subjectId,
+                teacherLocation : location,
                 roomCode,
                 status: "ACTIVE",
                 expiresAt
@@ -187,6 +208,8 @@ const findLiveSession = (sessionId) =>
         status: "ACTIVE",
         expiresAt: { $gt: new Date() }
     });
+
+
 
 // STUDENT JOINS
 router.post("/:sessionId/join", authMiddleware, roleMiddleware("STUDENT"), async (req, res) => {
