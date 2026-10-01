@@ -12,6 +12,23 @@ const attendanceRecordSchema = new mongoose.Schema(
             ref : "Student", 
             required : true 
         },
+        studentLocation: {
+            latitude: {
+                type: Number,
+                min: -90,
+                max: 90
+            },
+            longitude: {
+                type: Number,
+                min: -180,
+                max: 180
+            },
+            accuracy: {
+                type: Number,
+                min: 0
+            }
+        },
+
         status : {
             type : String,
             enum : ["JOINED", "PRESENT"],

@@ -13,7 +13,7 @@ const roleMiddleware = require("../middleware/roleMiddleware");
 
 const router = express.Router();
 
-// location validator function
+// helper : location validator function
 function parseLocation(loc) {
     if (!loc || typeof loc !== "object") return null;
 
@@ -25,6 +25,15 @@ function parseLocation(loc) {
 
     return { latitude, longitude, accuracy };
 }
+// helper : active, non-expired session by id
+const findLiveSession = (sessionId) =>
+    AttendanceSession.findOne({
+        _id: sessionId,
+        status: "ACTIVE",
+        expiresAt: { $gt: new Date() }
+    });
+
+
 
 // Create attendance session
 router.post(
@@ -201,16 +210,6 @@ router.patch(
 );
 
 
-// helper: active, non-expired session by id
-const findLiveSession = (sessionId) =>
-    AttendanceSession.findOne({
-        _id: sessionId,
-        status: "ACTIVE",
-        expiresAt: { $gt: new Date() }
-    });
-
-
-
 // STUDENT JOINS
 router.post("/:sessionId/join", authMiddleware, roleMiddleware("STUDENT"), async (req, res) => {
     try {
@@ -247,7 +246,14 @@ router.post("/:sessionId/join", authMiddleware, roleMiddleware("STUDENT"), async
 router.post("/:sessionId/verify", authMiddleware, roleMiddleware("STUDENT"), async (req, res) => {
     try {
         const { sessionId } = req.params;
-        const { roomCode } = req.body || {};
+        const { roomCode, studentLocation } = req.body || {};
+
+        const location = parseLocation(studentLocation);
+        if (!location) {
+            return res.status(400).json({
+                message: "A valid student location (latitude, longitude) is required"
+            });
+        }
 
         if (!mongoose.isValidObjectId(sessionId)) {
             return res.status(400).json({ message: "Invalid sessionId" });
@@ -273,7 +279,7 @@ router.post("/:sessionId/verify", authMiddleware, roleMiddleware("STUDENT"), asy
 
         await AttendanceRecord.updateOne(
             { _id: record._id, status: "JOINED" },
-            { $set: { status: "PRESENT", markedAt: new Date() } }
+            { $set: { status: "PRESENT", markedAt: new Date(), studentLocation: location } }
         );
 
         res.status(200).json({ message: "Marked present", status: "PRESENT" });

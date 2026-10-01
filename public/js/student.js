@@ -27,6 +27,36 @@ function stopPolling() {
 
 
 // ============================================================
+// HELPERS
+// ============================================================
+function getStudentLocation() {
+    return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+            reject(new Error("Geolocation is not supported by this browser."));
+            return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            (position) => resolve({
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude,
+                accuracy: position.coords.accuracy
+            }),
+            (error) => {
+                const messages = {
+                    1: "Location permission denied. Allow location access to mark attendance.",
+                    2: "Location unavailable. Check GPS/network and try again.",
+                    3: "Location request timed out. Try again."
+                };
+                reject(new Error(messages[error.code] || "Could not get location."));
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+    });
+}
+
+
+// ============================================================
 // PAGE LOAD
 // ============================================================
 
@@ -382,14 +412,16 @@ async function submitCode(sessionId) {
     if (!roomCode) return setSessionMessage("Enter the room code.");
 
     try {
-        await postAction(`/api/attendance-sessions/${sessionId}/verify`, { roomCode });
+        setSessionMessage("Getting your location...");
+        const studentLocation = await getStudentLocation();
+
+        await postAction(`/api/attendance-sessions/${sessionId}/verify`, { roomCode, studentLocation });
         lastKey = null;
         await loadActiveSession();
     } catch (error) {
         setSessionMessage(error.message);
     }
 }
-
 
 // ============================================================
 // DISPLAY ERROR
