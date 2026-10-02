@@ -37,12 +37,8 @@ const findLiveSession = (sessionId) =>
     });
 
 
-
 // Create attendance session
-router.post(
-    "/",
-    authMiddleware,
-    roleMiddleware("TEACHER"),
+router.post("/", authMiddleware, roleMiddleware("TEACHER"),
     async (req, res) => {
         try {
             const { groupId, subjectId, teacherLocation } = req.body || {};
@@ -115,10 +111,7 @@ router.post(
 );
 
 // GET Active session for the logged-in student
-router.get(
-    "/active",
-    authMiddleware,
-    roleMiddleware("STUDENT"),
+router.get("/active", authMiddleware, roleMiddleware("STUDENT"),
     async (req, res) => {
         try {
             const student = await Student.findOne({ userId: req.user.userId });
@@ -157,7 +150,8 @@ router.get(
                     group: session.groupId,
                     subject: session.subjectId,
                     expiresAt: session.expiresAt,
-                    myStatus : record ? record.status : null
+                    myStatus : record ? record.status : null,
+                    myLocationResult: record?.locationCheck?.result || null
                 }
             });
 
@@ -169,10 +163,7 @@ router.get(
 );
 
 // End an attendance session (only by the teacher who started it)
-router.patch(
-    "/:sessionId/end",
-    authMiddleware,
-    roleMiddleware("TEACHER"),
+router.patch( "/:sessionId/end", authMiddleware, roleMiddleware("TEACHER"),
     async (req, res) => {
         try {
             const { sessionId } = req.params;
@@ -211,7 +202,6 @@ router.patch(
     }
 );
 
-
 // STUDENT JOINS
 router.post("/:sessionId/join", authMiddleware, roleMiddleware("STUDENT"), async (req, res) => {
     try {
@@ -245,10 +235,7 @@ router.post("/:sessionId/join", authMiddleware, roleMiddleware("STUDENT"), async
 });
 
 // STUDENT SUBMITS CODE (NEW WITH LOCATION CHECK)
-router.post(
-    "/:sessionId/verify",
-    authMiddleware,
-    roleMiddleware("STUDENT"), 
+router.post("/:sessionId/verify", authMiddleware, roleMiddleware("STUDENT"), 
     async(req, res) => {
         try {
             const { sessionId } = req.params ;
@@ -412,6 +399,57 @@ router.post("/:sessionId/verify", authMiddleware, roleMiddleware("STUDENT"), asy
     }
 });
 
+// STUDENT REQUESTS REVIEW (single tap, no body)
+router.post("/:sessionId/review-request", authMiddleware, roleMiddleware("STUDENT"), async (req, res) => {
+    try {
+        const { sessionId } = req.params;
+        if (!mongoose.isValidObjectId(sessionId)) {
+            return res.status(400).json({ message: "Invalid sessionId" });
+        }
+
+        const student = await Student.findOne({ userId: req.user.userId });
+        if (!student) return res.status(404).json({ message: "Student profile not found" });
+
+        const session = await findLiveSession(sessionId);
+        if (!session) return res.status(404).json({ message: "Session is not active" });
+
+        const record = await AttendanceRecord.findOne({ sessionId, studentId: student._id });
+        if (!record) return res.status(400).json({ message: "Join the session first" });
+
+        // Atomic: only JOINED students whose last location check failed can request review
+        const update = await AttendanceRecord.updateOne(
+            {
+                _id: record._id,
+                status: "JOINED",
+                "locationCheck.result": { $in: ["FAIL_FAR", "NO_LOCATION"] }
+            },
+            { $set: { status: "REVIEW", reviewRequestedAt: new Date() } }
+        );
+
+        if (update.matchedCount === 0) {
+            const current = await AttendanceRecord.findById(record._id);
+            const status = current ? current.status : null;
+
+            if (status === "JOINED") {
+                return res.status(400).json({
+                    message: "Enter the room code first. Review can only be requested after a failed location check.",
+                    status
+                });
+            }
+            return res.status(409).json({
+                message: "Your attendance status has already been updated",
+                status
+            });
+        }
+
+        res.status(200).json({ message: "Review requested", status: "REVIEW" });
+
+    } catch (error) {
+        console.error("Review request error:", error);
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+});
+
 // TEACHER ROSTER (polled)
 router.get("/:sessionId/roster", authMiddleware, roleMiddleware("TEACHER"), async (req, res) => {
     try {
@@ -432,16 +470,24 @@ router.get("/:sessionId/roster", authMiddleware, roleMiddleware("TEACHER"), asyn
         });
 
         const records = await AttendanceRecord.find({ sessionId });
-        const statusByStudent = new Map(records.map((r) => [String(r.studentId), r.status]));
+        const recordByStudent = new Map(records.map((r) => [String(r.studentId), r]));
 
         const students = memberships
             .filter((m) => m.studentId && m.studentId.userId)
-            .map((m) => ({
-                studentId: m.studentId._id,
-                rollNo: m.studentId.rollNo,
-                name: m.studentId.userId.name,
-                status: statusByStudent.get(String(m.studentId._id)) || "ABSENT"
-            }))
+            .map((m) => {
+                const r = recordByStudent.get(String(m.studentId._id));
+                return {
+                    studentId: m.studentId._id,
+                    rollNo: m.studentId.rollNo,
+                    name: m.studentId.userId.name,
+                    status: r ? r.status : "ABSENT",
+                    joined: !!r,
+                    locationResult: r?.locationCheck?.result || null,
+                    distanceMeters: r?.locationCheck?.distanceMeters ?? null,
+                    reviewRequestedAt: r?.reviewRequestedAt || null,
+                    decidedBy: r?.decision?.by || null
+                };
+            })
             .sort((a, b) => a.rollNo.localeCompare(b.rollNo));
 
         res.status(200).json({
@@ -454,5 +500,62 @@ router.get("/:sessionId/roster", authMiddleware, roleMiddleware("TEACHER"), asyn
     }
 });
 
+// TEACHER OVERRIDE / REVIEW DECISION (final call)
+router.patch("/:sessionId/students/:studentId/attendance", authMiddleware, roleMiddleware("TEACHER"), async (req, res) => {
+    try {
+        const { sessionId, studentId } = req.params;
+        const { status } = req.body || {};
+
+        for (const [field, value] of Object.entries({ sessionId, studentId })) {
+            if (!mongoose.isValidObjectId(value)) {
+                return res.status(400).json({ message: `Invalid ${field}` });
+            }
+        }
+        if (!["PRESENT", "ABSENT"].includes(status)) {
+            return res.status(400).json({ message: "Status must be PRESENT or ABSENT" });
+        }
+
+        const teacher = await Teacher.findOne({ userId: req.user.userId });
+        if (!teacher) return res.status(404).json({ message: "Teacher profile not found" });
+
+        // Teacher can change statuses until they end the session
+        const session = await AttendanceSession.findOne({
+            _id: sessionId,
+            teacherId: teacher._id,
+            status: "ACTIVE"
+        });
+        if (!session) {
+            return res.status(404).json({ message: "Active session not found for this teacher" });
+        }
+
+        const member = await StudentGroup.findOne({ studentId, groupId: session.groupId });
+        if (!member) {
+            return res.status(403).json({ message: "Student is not in this session's group" });
+        }
+
+        const now = new Date();
+        const update = {
+            $set: { status, "decision.by": "TEACHER", "decision.at": now }
+        };
+        if (status === "PRESENT") update.$set.markedAt = now;
+        else update.$unset = { markedAt: 1 };
+
+        const record = await AttendanceRecord.findOneAndUpdate(
+            { sessionId, studentId },
+            update,
+            { upsert: true, new: true, setDefaultsOnInsert: false }
+        );
+
+        res.status(200).json({
+            message: `Student marked ${status}`,
+            studentId,
+            status: record.status
+        });
+
+    } catch (error) {
+        console.error("Attendance override error:", error);
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+});
 
 module.exports = router;
