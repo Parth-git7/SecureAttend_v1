@@ -32,7 +32,10 @@ function stopPolling() {
 function getStudentLocation() {
     return new Promise((resolve, reject) => {
         if (!navigator.geolocation) {
-            reject(new Error("Geolocation is not supported by this browser."));
+            reject(Object.assign(
+                new Error("Geolocation is not supported by this browser."),
+                { locationError: "UNAVAILABLE" }
+            ));
             return;
         }
 
@@ -43,12 +46,11 @@ function getStudentLocation() {
                 accuracy: position.coords.accuracy
             }),
             (error) => {
-                const messages = {
-                    1: "Location permission denied. Allow location access to mark attendance.",
-                    2: "Location unavailable. Check GPS/network and try again.",
-                    3: "Location request timed out. Try again."
-                };
-                reject(new Error(messages[error.code] || "Could not get location."));
+                const reasons = { 1: "DENIED", 2: "UNAVAILABLE", 3: "TIMEOUT" };
+                reject(Object.assign(
+                    new Error("Could not get location."),
+                    { locationError: reasons[error.code] || "UNAVAILABLE" }
+                ));
             },
             { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
         );
@@ -413,11 +415,23 @@ async function submitCode(sessionId) {
 
     try {
         setSessionMessage("Getting your location...");
-        const studentLocation = await getStudentLocation();
 
-        await postAction(`/api/attendance-sessions/${sessionId}/verify`, { roomCode, studentLocation });
-        lastKey = null;
-        await loadActiveSession();
+        const payload = { roomCode };
+        try {
+            payload.studentLocation = await getStudentLocation();
+        } catch (err) {
+            payload.locationError = err.locationError || "UNAVAILABLE";
+        }
+
+        const data = await postAction(`/api/attendance-sessions/${sessionId}/verify`, payload);
+
+        if (data.status === "PRESENT") {
+            lastKey = null;
+            await loadActiveSession();
+        } else {
+            // location failed: stay on the code screen and show why
+            setSessionMessage(data.message);
+        }
     } catch (error) {
         setSessionMessage(error.message);
     }

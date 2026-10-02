@@ -29,6 +29,10 @@ const attendanceRecordSchema = new mongoose.Schema(
             }
         },
         locationCheck: {
+            result: {
+                type: String,
+                enum: ["PASS", "FAIL_FAR", "NO_LOCATION"]
+            },
             distanceMeters: {
                 type: Number,
                 min: 0
@@ -37,8 +41,22 @@ const attendanceRecordSchema = new mongoose.Schema(
 
         status : {
             type : String,
-            enum : ["JOINED", "PRESENT"],
+            enum : ["JOINED", "PRESENT", "REVIEW", "ABSENT"],
             default : "JOINED"
+        },
+
+        reviewRequestedAt: {
+            type: Date
+        },
+
+        decision: {
+            by: {
+                type: String,
+                enum: ["SYSTEM", "TEACHER"]
+            },
+            at: {
+                type: Date
+            }
         },
         joinedAt : {
             type : Date,
