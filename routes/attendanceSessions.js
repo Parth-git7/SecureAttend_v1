@@ -84,6 +84,8 @@ router.post("/", authMiddleware, roleMiddleware("TEACHER"),
                 .substring(2, 7)
                 .toUpperCase();
 
+            
+            const expiresAt = new Date(Date.now() + SESSION_DURATION_MIN * 60 * 1000);
 
             const session = await AttendanceSession.create({
                 teacherId: teacher._id,
@@ -339,65 +341,7 @@ router.post("/:sessionId/verify", authMiddleware, roleMiddleware("STUDENT"),
         }
     }
 )
-// STUDENT SUBMITS CODE
-router.post("/:sessionId/verify", authMiddleware, roleMiddleware("STUDENT"), async (req, res) => {
-    try {
-        const { sessionId } = req.params;
-        const { roomCode, studentLocation } = req.body || {};
 
-        const location = parseLocation(studentLocation);
-        if (!location) {
-            return res.status(400).json({
-                message: "A valid student location (latitude, longitude) is required"
-            });
-        }
-
-        if (!mongoose.isValidObjectId(sessionId)) {
-            return res.status(400).json({ message: "Invalid sessionId" });
-        }
-        if (!roomCode) return res.status(400).json({ message: "Room code is required" });
-
-        const student = await Student.findOne({ userId: req.user.userId });
-        if (!student) return res.status(404).json({ message: "Student profile not found" });
-
-        const session = await findLiveSession(sessionId);
-        if (!session) return res.status(404).json({ message: "Session is not active" });
-
-        const record = await AttendanceRecord.findOne({ sessionId, studentId: student._id });
-        if (!record) return res.status(400).json({ message: "Join the session first" });
-
-        if (record.status === "PRESENT") {
-            return res.status(200).json({ message: "Already marked present", status: "PRESENT" });
-        }
-
-        if (String(roomCode).trim().toUpperCase() !== session.roomCode) {
-            return res.status(400).json({ message: "Incorrect room code" });
-        }
-
-        let distance = null;
-        if (session.teacherLocation && session.teacherLocation.latitude != null) {
-            distance = Math.round(distanceMeters(session.teacherLocation, location) * 10) / 10;
-            console.log(`[location] session ${sessionId} student ${student._id} distance=${distance}m teacherAcc=${session.teacherLocation.accuracy} studentAcc=${location.accuracy}`);
-        }
-
-        await AttendanceRecord.updateOne(
-            { _id: record._id, status: "JOINED" },
-            {
-                $set: {
-                    status: "PRESENT",
-                    markedAt: new Date(),
-                    studentLocation: location,
-                    "locationCheck.distanceMeters": distance
-                }
-            }
-        );
-
-        res.status(200).json({ message: "Marked present", status: "PRESENT" });
-    } catch (error) {
-        console.error("Verify code error:", error);
-        res.status(500).json({ message: "Server error", error: error.message });
-    }
-});
 
 // STUDENT REQUESTS REVIEW (single tap, no body)
 router.post("/:sessionId/review-request", authMiddleware, roleMiddleware("STUDENT"), async (req, res) => {
@@ -416,39 +360,27 @@ router.post("/:sessionId/review-request", authMiddleware, roleMiddleware("STUDEN
         const record = await AttendanceRecord.findOne({ sessionId, studentId: student._id });
         if (!record) return res.status(400).json({ message: "Join the session first" });
 
-        // Atomic: only JOINED students whose last location check failed can request review
+
         const update = await AttendanceRecord.updateOne(
-            {
-                _id: record._id,
-                status: "JOINED",
-                "locationCheck.result": { $in: ["FAIL_FAR", "NO_LOCATION"] }
-            },
+            { _id: record._id, status: "JOINED" },
             { $set: { status: "REVIEW", reviewRequestedAt: new Date() } }
         );
 
         if (update.matchedCount === 0) {
             const current = await AttendanceRecord.findById(record._id);
-            const status = current ? current.status : null;
-
-            if (status === "JOINED") {
-                return res.status(400).json({
-                    message: "Enter the room code first. Review can only be requested after a failed location check.",
-                    status
-                });
-            }
             return res.status(409).json({
                 message: "Your attendance status has already been updated",
-                status
+                status: current ? current.status : null
             });
         }
 
         res.status(200).json({ message: "Review requested", status: "REVIEW" });
 
-    } catch (error) {
-        console.error("Review request error:", error);
-        res.status(500).json({ message: "Server error", error: error.message });
-    }
-});
+        } catch (error) {
+            console.error("Review request error:", error);
+            res.status(500).json({ message: "Server error", error: error.message });
+        }
+    });
 
 // TEACHER ROSTER (polled)
 router.get("/:sessionId/roster", authMiddleware, roleMiddleware("TEACHER"), async (req, res) => {

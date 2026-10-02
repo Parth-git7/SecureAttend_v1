@@ -146,7 +146,7 @@ function showDashboard() {
         currentUser.role;
 
 
-    loadActiveSession();
+    startPolling();
 
 }
 
@@ -336,7 +336,9 @@ async function loadActiveSession() {
 // ============================================================
 
 function displayActiveSession(session) {
-    const key = session ? `${session.sessionId}:${session.myStatus}` : "none";
+    const key = session
+        ? `${session.sessionId}:${session.myStatus}:${session.myLocationResult}`
+        : "none";
     if (key === lastKey) return;
     lastKey = key;
 
@@ -351,14 +353,29 @@ function displayActiveSession(session) {
         return;
     }
 
+    const failed = ["FAIL_FAR", "NO_LOCATION"].includes(session.myLocationResult);
+
     let action;
     if (session.myStatus === "PRESENT") {
         action = `<p><strong>You are marked PRESENT.</strong></p>`;
+    } else if (session.myStatus === "REVIEW") {
+        action = `<p><strong>Review requested. Waiting for your teacher's decision.</strong></p>`;
+    } else if (session.myStatus === "ABSENT") {
+        action = `<p><strong>You were marked ABSENT by the teacher.</strong></p>`;
     } else if (session.myStatus === "JOINED") {
+        const failNote = failed
+            ? `<div class="message error">${
+                session.myLocationResult === "NO_LOCATION"
+                    ? "Your location could not be accessed."
+                    : "You seem too far from the classroom."
+            } Retry, or request a review.</div>`
+            : "";
         action = `
+            ${failNote}
             <p>Enter the room code shown by your teacher:</p>
             <input id="room-code-input" type="text" maxlength="5" autocomplete="off">
-            <button id="submit-code-btn">Submit Code</button>`;
+            <button id="submit-code-btn">${failed ? "Retry" : "Submit Code"}</button>
+            <button id="review-btn" class="btn-danger">Request Review</button>`;
     } else {
         action = `<button id="join-session-btn">Join Attendance</button>`;
     }
@@ -378,6 +395,41 @@ function displayActiveSession(session) {
         ?.addEventListener("click", () => joinSession(session.sessionId));
     document.getElementById("submit-code-btn")
         ?.addEventListener("click", () => submitCode(session.sessionId));
+    document.getElementById("review-btn")
+        ?.addEventListener("click", () => requestReview(session.sessionId));
+}
+
+async function submitCode(sessionId) {
+    const roomCode = document.getElementById("room-code-input").value.trim();
+    if (!roomCode) return setSessionMessage("Enter the room code.");
+
+    try {
+        setSessionMessage("Getting your location...");
+
+        const payload = { roomCode };
+        try {
+            payload.studentLocation = await getStudentLocation();
+        } catch (err) {
+            payload.locationError = err.locationError || "UNAVAILABLE";
+        }
+
+        await postAction(`/api/attendance-sessions/${sessionId}/verify`, payload);
+
+        lastKey = null;
+        await loadActiveSession();
+    } catch (error) {
+        setSessionMessage(error.message);
+    }
+}
+
+async function requestReview(sessionId) {
+    try {
+        await postAction(`/api/attendance-sessions/${sessionId}/review-request`);
+        lastKey = null;
+        await loadActiveSession();
+    } catch (error) {
+        setSessionMessage(error.message);
+    }
 }
 
 async function postAction(path, body) {
@@ -409,39 +461,15 @@ async function joinSession(sessionId) {
     }
 }
 
-async function submitCode(sessionId) {
-    const roomCode = document.getElementById("room-code-input").value.trim();
-    if (!roomCode) return setSessionMessage("Enter the room code.");
 
-    try {
-        setSessionMessage("Getting your location...");
-
-        const payload = { roomCode };
-        try {
-            payload.studentLocation = await getStudentLocation();
-        } catch (err) {
-            payload.locationError = err.locationError || "UNAVAILABLE";
-        }
-
-        const data = await postAction(`/api/attendance-sessions/${sessionId}/verify`, payload);
-
-        if (data.status === "PRESENT") {
-            lastKey = null;
-            await loadActiveSession();
-        } else {
-            // location failed: stay on the code screen and show why
-            setSessionMessage(data.message);
-        }
-    } catch (error) {
-        setSessionMessage(error.message);
-    }
-}
 
 // ============================================================
 // DISPLAY ERROR
 // ============================================================
 
 function displaySessionError(message) {
+
+    lastKey = null ;
 
     const container =
         document.getElementById(
@@ -507,6 +535,8 @@ function setupEventListeners() {
 // ============================================================
 
 function logout() {
+
+    stopPolling() ;
 
     localStorage.removeItem(
         "sa_student_token"

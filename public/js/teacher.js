@@ -454,7 +454,8 @@ async function handleEndSession(sessionId) {
         }
 
         showMessage("Attendance session ended.", "success");
-
+        document.querySelectorAll("#group-students button").forEach((b) => (b.disabled = true));
+        
         getOrCreateModule("active-session").innerHTML = `
             <h3>Attendance Session</h3>
             <p>Session ended.</p>
@@ -471,14 +472,16 @@ async function handleEndSession(sessionId) {
 // =============================================================================================
 
 let rosterTimer = null;
+let rosterSessionId = null;
 
 function startRosterPolling(sessionId) {
     stopRosterPolling();
+    rosterSessionId = sessionId;
 
     const tick = async () => {
         try {
             const data = await apiGet(`/api/attendance-sessions/${sessionId}/roster`);
-            displayRoster(data.students);
+            displayRoster(data.students, data.session.status === "ACTIVE");
 
             const expired = new Date(data.session.expiresAt) <= new Date();
             if (data.session.status !== "ACTIVE" || expired) stopRosterPolling();
@@ -499,8 +502,16 @@ function stopRosterPolling() {
     rosterTimer = null;
 }
 
-function displayRoster(students) {
+function displayRoster(students, active = true) {
     const container = getOrCreateModule("group-students");
+
+    if (!container.dataset.bound) {
+        container.dataset.bound = "1";
+        container.addEventListener("click", (e) => {
+            const btn = e.target.closest("button[data-status]");
+            if (btn) markStudent(btn.dataset.student, btn.dataset.status);
+        });
+    }
 
     if (!students.length) {
         container.innerHTML = `<h3>Group Students</h3><p>No students found in this group.</p>`;
@@ -510,11 +521,17 @@ function displayRoster(students) {
     const present = students.filter((s) => s.status === "PRESENT").length;
 
     const rows = students.map((s, i) => `
-        <tr>
+        <tr class="${s.status === "REVIEW" ? "review-row" : ""}">
             <td style="padding:8px;">${i + 1}</td>
             <td style="padding:8px;">${escapeHtml(s.rollNo)}</td>
             <td style="padding:8px;">${escapeHtml(s.name)}</td>
             <td style="padding:8px;">${escapeHtml(s.status)}</td>
+            <td style="padding:8px;">
+                <button data-student="${s.studentId}" data-status="PRESENT"
+                    ${!active || s.status === "PRESENT" ? "disabled" : ""}>Approve</button>
+                <button class="btn-danger" data-student="${s.studentId}" data-status="ABSENT"
+                    ${!active || s.status === "ABSENT" ? "disabled" : ""}>Reject</button>
+            </td>
         </tr>
     `).join("");
 
@@ -527,6 +544,7 @@ function displayRoster(students) {
                     <th style="text-align:left; padding:8px;">Roll No.</th>
                     <th style="text-align:left; padding:8px;">Name</th>
                     <th style="text-align:left; padding:8px;">Status</th>
+                    <th style="text-align:left; padding:8px;">Action</th>
                 </tr>
             </thead>
             <tbody>${rows}</tbody>
@@ -534,6 +552,28 @@ function displayRoster(students) {
     `;
 }
 
+async function markStudent(studentId, status) {
+    try {
+        const response = await fetch(
+            `/api/attendance-sessions/${rosterSessionId}/students/${studentId}/attendance`,
+            {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${getToken()}`
+                },
+                body: JSON.stringify({ status })
+            }
+        );
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || "Failed to update attendance");
+
+        const roster = await apiGet(`/api/attendance-sessions/${rosterSessionId}/roster`);
+        displayRoster(roster.students, roster.session.status === "ACTIVE");
+    } catch (error) {
+        showMessage(error.message, "error");
+    }
+}
 
 // ============================================================
 // EVENT LISTENERS
