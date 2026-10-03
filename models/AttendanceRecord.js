@@ -38,6 +38,14 @@ const attendanceRecordSchema = new mongoose.Schema(
                 min: 0
             }
         },
+        faceCheck: {
+            result: {
+                type: String,
+                enum: ["PASS", "FAIL_MISMATCH", "NO_FACE", "NO_TEMPLATE", "ERROR"]
+            },
+            score: { type: Number },
+            framesUsed: { type: Number, min: 0 }
+        },
 
         status : {
             type : String,

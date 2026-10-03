@@ -13,8 +13,11 @@ const roleMiddleware = require("../middleware/roleMiddleware");
 const { SESSION_DURATION_MIN } = require("../config");
 const { distanceMeters } = require("../utils/geo");
 const { checkLocation, LOCATION_ERRORS } = require("../utils/location");
+const { compareFaces } = require("../utils/face");
+
 
 const router = express.Router();
+
 
 // helper : location validator function
 function parseLocation(loc) {
@@ -35,6 +38,20 @@ const findLiveSession = (sessionId) =>
         status: "ACTIVE",
         expiresAt: { $gt: new Date() }
     });
+
+const MAX_FRAMES = 5;
+
+// helper : "data:image/jpeg;base64,..." strings -> Buffers (null if invalid)
+function parseFrames(frames) {
+    if (!Array.isArray(frames) || !frames.length || frames.length > MAX_FRAMES) return null;
+    const buffers = [];
+    for (const f of frames) {
+        const m = typeof f === "string" && f.match(/^data:image\/jpeg;base64,(.+)$/);
+        if (!m) return null;
+        buffers.push(Buffer.from(m[1], "base64"));
+    }
+    return buffers;
+}
 
 
 // Create attendance session
@@ -153,7 +170,8 @@ router.get("/active", authMiddleware, roleMiddleware("STUDENT"),
                     subject: session.subjectId,
                     expiresAt: session.expiresAt,
                     myStatus : record ? record.status : null,
-                    myLocationResult: record?.locationCheck?.result || null
+                    myLocationResult: record?.locationCheck?.result || null,
+                    myFaceResult: record?.faceCheck?.result || null
                 }
             });
 
@@ -241,7 +259,7 @@ router.post("/:sessionId/verify", authMiddleware, roleMiddleware("STUDENT"),
     async(req, res) => {
         try {
             const { sessionId } = req.params ;
-            const { roomCode, studentLocation, locationError } = req.body || {} ;
+            const { roomCode, studentLocation, locationError, frames} = req.body || {} ;
 
             if ( !mongoose.isValidObjectId(sessionId) ){
                 return res.status(400).json({message : "Invalid Session"}) ;
@@ -257,7 +275,12 @@ router.post("/:sessionId/verify", authMiddleware, roleMiddleware("STUDENT"),
                 }) ;
             }
 
-            const student = await Student.findOne({ userId: req.user.userId });
+            const faceBuffers = frames === undefined ? [] : parseFrames(frames);
+            if (!faceBuffers) {
+                return res.status(400).json({ message: "Invalid face frames" });
+            }
+
+            const student = await Student.findOne({ userId: req.user.userId }).select("+faceEmbeddings");
             if (!student) return res.status(404).json({ message: "Student profile not found" });
 
             const session = await findLiveSession(sessionId);
@@ -283,15 +306,24 @@ router.post("/:sessionId/verify", authMiddleware, roleMiddleware("STUDENT"),
                 return res.status(400).json({ message: "Incorrect room code" });
             }
 
-            // Check 2: location (face recognition will slot in as another check here later)
+            // Check 2: location
             const { result, distance } = checkLocation(session.teacherLocation, location);
-            const passed = result === "PASS";
 
-            console.log(`[location] session ${sessionId} student ${student._id} result=${result} distance=${distance}m teacherAcc=${session.teacherLocation?.accuracy} studentAcc=${location?.accuracy}`);
+            // Check 3: face
+            const face = faceBuffers.length
+                ? await compareFaces(faceBuffers, student.faceEmbeddings)
+                : { result: "NO_FACE", score: null, framesUsed: 0 };
+
+            const passed = result === "PASS" && face.result === "PASS";
+
+            console.log(`[verify] session ${sessionId} student ${student._id} loc=${result} ${distance}m face=${face.result} score=${face.score} frames=${face.framesUsed}`);
 
             const set = {
                 "locationCheck.result": result,
-                "locationCheck.distanceMeters": distance
+                "locationCheck.distanceMeters": distance,
+                "faceCheck.result": face.result,
+                "faceCheck.score": face.score,
+                "faceCheck.framesUsed": face.framesUsed
             };
             if (location) set.studentLocation = location;
             if (passed) {
@@ -319,18 +351,28 @@ router.post("/:sessionId/verify", authMiddleware, roleMiddleware("STUDENT"),
                 return res.status(200).json({
                     message: "Marked present",
                     status: "PRESENT",
-                    locationResult: result
+                    locationResult: result,
+                    faceResult: face.result
                 });
             }
 
-            const message = result === "NO_LOCATION"
-                ? "Your location could not be accessed. Retry or send review request."
-                : "You seem too far. Retry or send review request.";
+            const FACE_MESSAGES = {
+                NO_FACE: "We couldn't see your face clearly.",
+                FAIL_MISMATCH: "Your face did not match.",
+                NO_TEMPLATE: "No face photo is on file for you.",
+                ERROR: "Face check is unavailable right now."
+            };
+
+            const reasons = [];
+            if (result === "NO_LOCATION") reasons.push("Your location could not be accessed.");
+            if (result === "FAIL_FAR") reasons.push("You seem too far from the classroom.");
+            if (face.result !== "PASS") reasons.push(FACE_MESSAGES[face.result]);
 
             res.status(200).json({
-                message,
+                message: `${reasons.join(" ")} Retry or send review request.`,
                 status: "JOINED",
-                locationResult: result
+                locationResult: result,
+                faceResult: face.result
             });
 
         }

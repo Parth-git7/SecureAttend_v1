@@ -151,6 +151,7 @@
                 <button class="btn btn-secondary btn-sm" id="refresh-users-btn">&#8635; Refresh</button>
             </div>
             <div class="tabs">
+                <button class="tab-btn" data-tab="tab-face-photos">Face Photos</button>
                 <button class="tab-btn active" data-tab="tab-students-list">Students</button>
                 <button class="tab-btn" data-tab="tab-create-user">+ Create Account</button>
             </div>
@@ -182,6 +183,23 @@
                         <div id="teacher-fields-2"><div class="form-group"><label for="new-employee-code-2">Employee Code</label><input type="text" id="new-employee-code-2" placeholder="e.g. EMP001"></div></div>
                         <button type="submit" class="btn btn-primary">+ Create Account</button>
                     </form>
+                </div>
+            </div>
+            <div id="tab-face-photos" class="tab-content" style="display:none;">
+                <div class="card" style="max-width:700px;">
+                    <div class="card-header"><h3>Upload Face Photos</h3></div>
+                    <div class="alert" id="face-upload-alert"><span class="alert-icon"></span><span class="alert-msg"></span></div>
+                    <p class="text-secondary text-sm mb-16">Name each file with the student's roll number, e.g. 2410992624.jpg</p>
+                    <div class="form-group">
+                        <label for="face-files">Photos folder</label>
+                        <input type="file" id="face-files" accept="image/*" multiple webkitdirectory>
+                    </div>
+                    <button class="btn btn-primary" id="face-upload-btn">Upload</button>
+                    <p class="text-secondary text-sm mt-16" id="face-upload-status"></p>
+                    <div class="table-wrapper mt-16" id="face-failed-wrap" style="display:none;"><table>
+                        <thead><tr><th>File</th><th>Reason</th></tr></thead>
+                        <tbody id="face-failed-body"></tbody>
+                    </table></div>
                 </div>
             </div>
         </section>

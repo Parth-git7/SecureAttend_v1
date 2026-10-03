@@ -57,6 +57,38 @@ function getStudentLocation() {
     });
 }
 
+async function captureFrames(count = 3, gapMs = 400) {
+    const video = document.getElementById("camera-preview");
+    const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: { ideal: 640 } },
+        audio: false
+    });
+
+    try {
+        video.srcObject = stream;
+        video.style.display = "block";
+        await video.play();
+        await new Promise((r) => setTimeout(r, 800));   // camera warm-up
+
+        const scale = Math.min(1, 640 / video.videoWidth);
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.round(video.videoWidth * scale);
+        canvas.height = Math.round(video.videoHeight * scale);
+        const ctx = canvas.getContext("2d");
+
+        const frames = [];
+        for (let i = 0; i < count; i++) {
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            frames.push(canvas.toDataURL("image/jpeg", 0.85));
+            await new Promise((r) => setTimeout(r, gapMs));
+        }
+        return frames;
+    } finally {
+        stream.getTracks().forEach((t) => t.stop());
+        video.srcObject = null;
+        video.style.display = "none";
+    }
+}
 
 // ============================================================
 // PAGE LOAD
@@ -337,7 +369,7 @@ async function loadActiveSession() {
 
 function displayActiveSession(session) {
     const key = session
-        ? `${session.sessionId}:${session.myStatus}:${session.myLocationResult}`
+        ? `${session.sessionId}:${session.myStatus}:${session.myLocationResult}:${session.myFaceResult}`
         : "none";
     if (key === lastKey) return;
     lastKey = key;
@@ -353,7 +385,22 @@ function displayActiveSession(session) {
         return;
     }
 
-    const failed = ["FAIL_FAR", "NO_LOCATION"].includes(session.myLocationResult);
+    const LOC_MSG = {
+        NO_LOCATION: "Your location could not be accessed.",
+        FAIL_FAR: "You seem too far from the classroom."
+    };
+    const FACE_MSG = {
+        NO_FACE: "We couldn't see your face clearly.",
+        FAIL_MISMATCH: "Your face did not match.",
+        NO_TEMPLATE: "No face photo is on file for you.",
+        ERROR: "Face check is unavailable right now."
+    };
+
+    const reasons = [
+        LOC_MSG[session.myLocationResult],
+        FACE_MSG[session.myFaceResult]
+    ].filter(Boolean);
+    const failed = reasons.length > 0;
 
     let action;
     if (session.myStatus === "PRESENT") {
@@ -364,16 +411,13 @@ function displayActiveSession(session) {
         action = `<p><strong>You were marked ABSENT by the teacher.</strong></p>`;
     } else if (session.myStatus === "JOINED") {
         const failNote = failed
-            ? `<div class="message error">${
-                session.myLocationResult === "NO_LOCATION"
-                    ? "Your location could not be accessed."
-                    : "You seem too far from the classroom."
-            } Retry, or request a review.</div>`
+            ? `<div class="message error">${reasons.join(" ")} Retry, or request a review.</div>`
             : "";
         action = `
             ${failNote}
             <p>Enter the room code shown by your teacher:</p>
             <input id="room-code-input" type="text" maxlength="5" autocomplete="off">
+            <video id="camera-preview" playsinline muted style="display:none; width:200px; margin:8px 0;"></video>
             <button id="submit-code-btn">${failed ? "Retry" : "Submit Code"}</button>
             <button id="review-btn" class="btn-danger">Request Review</button>`;
     } else {
@@ -411,6 +455,13 @@ async function submitCode(sessionId) {
             payload.studentLocation = await getStudentLocation();
         } catch (err) {
             payload.locationError = err.locationError || "UNAVAILABLE";
+        }
+
+        setSessionMessage("Look at the camera...");
+        try {
+            payload.frames = await captureFrames();
+        } catch (err) {
+            console.error("Camera error:", err);
         }
 
         await postAction(`/api/attendance-sessions/${sessionId}/verify`, payload);

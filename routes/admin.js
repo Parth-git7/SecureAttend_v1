@@ -14,6 +14,15 @@ const GroupSubject = require("../models/GroupSubject");
 const authMiddleware = require("../middleware/authMiddleware");
 const roleMiddleware = require("../middleware/roleMiddleware");
 
+const multer = require("multer");
+const path = require("path");
+const { enrollAdminPhoto } = require("../utils/face");  
+
+const bulkUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024, files: 100 }
+});
+
 const router = express.Router();
 
 router.get(
@@ -194,8 +203,6 @@ router.post(
         }
     }
 );
-
-
 
 
 // academic periods creator
@@ -614,7 +621,95 @@ router.post(
     }
 );
 
+// UPLOAD student face photo -> store embedding
+router.post(
+    "/students/:studentId/face-photo",
+    authMiddleware,
+    roleMiddleware("ADMIN"),
+    (req, res, next) => upload.single("photo")(req, res, (err) => {
+        if (err) return res.status(400).json({ message: err.message });
+        next();
+    }),
+    async (req, res) => {
+        try {
+            const { studentId } = req.params;
 
+            if (!mongoose.isValidObjectId(studentId)) {
+                return res.status(400).json({ message: "Invalid studentId" });
+            }
+            if (!req.file || !req.file.mimetype.startsWith("image/")) {
+                return res.status(400).json({ message: "An image file (field: photo) is required" });
+            }
+
+            const student = await Student.findById(studentId).select("+faceEmbeddings");
+            if (!student) {
+                return res.status(404).json({ message: "Student not found" });
+            }
+
+            const outcome = await enrollAdminPhoto(student, req.file.buffer);
+            if (!outcome.ok) {
+                return res.status(422).json({ message: outcome.message });
+            }
+
+            res.status(200).json({ message: "Face photo saved", detScore: outcome.detScore });
+
+        } catch (error) {
+            console.error("Face photo upload error:", error);
+            res.status(500).json({ message: "Server error", error: error.message });
+        }
+    }
+);
+
+// BULK face photos: filename (without extension) = roll number
+router.post(
+    "/students/face-photos",
+    authMiddleware,
+    roleMiddleware("ADMIN"),
+    (req, res, next) => bulkUpload.array("photos", 100)(req, res, (err) => {
+        if (err) return res.status(400).json({ message: err.message });
+        next();
+    }),
+    async (req, res) => {
+        try {
+            if (!req.files || !req.files.length) {
+                return res.status(400).json({ message: "No photos uploaded (field: photos)" });
+            }
+
+            let saved = 0;
+            const failed = [];
+
+            // sequential on purpose: the face service is CPU-bound
+            for (const file of req.files) {
+                const rollNo = path.parse(file.originalname).name.trim();
+                try {
+                    if (!file.mimetype.startsWith("image/")) {
+                        failed.push({ file: file.originalname, reason: "Not an image" });
+                        continue;
+                    }
+
+                    const student = await Student.findOne({ rollNo }).select("+faceEmbeddings");
+                    if (!student) {
+                        failed.push({ file: file.originalname, reason: "No student with this roll number" });
+                        continue;
+                    }
+
+                    const outcome = await enrollAdminPhoto(student, file.buffer);
+                    if (outcome.ok) saved++;
+                    else failed.push({ file: file.originalname, reason: outcome.message });
+
+                } catch (err) {
+                    failed.push({ file: file.originalname, reason: err.message });
+                }
+            }
+
+            res.status(200).json({ saved, failedCount: failed.length, failed });
+
+        } catch (error) {
+            console.error("Bulk face photo error:", error);
+            res.status(500).json({ message: "Server error", error: error.message });
+        }
+    }
+);
 
 ////// get requests ///////
 

@@ -827,6 +827,84 @@ async function handleAssignSubject(event) {
     }
 }
 
+// ============================================================
+// BULK FACE PHOTOS
+// ============================================================
+
+const FACE_CHUNK_SIZE = 20;
+const FACE_MAX_BYTES = 5 * 1024 * 1024;
+
+async function uploadFaceChunk(files) {
+    const form = new FormData();
+    files.forEach(f => form.append("photos", f, f.name));
+
+    const res = await fetch("/api/admin/students/face-photos", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${jwtToken}` },
+        body: form
+    });
+    const data = await res.json();
+
+    if (res.status === 401 || res.status === 403) {
+        logout();
+        throw new Error("Session expired. Please log in again.");
+    }
+    if (!res.ok) throw new Error(data.message || "Upload failed");
+    return data;
+}
+
+async function handleFacePhotoUpload() {
+    const btn = document.getElementById("face-upload-btn");
+    const status = document.getElementById("face-upload-status");
+    const all = [...document.getElementById("face-files").files].filter(f => f.type.startsWith("image/"));
+
+    if (!all.length) {
+        showAlert("face-upload-alert", "error", "Select a folder that contains images.");
+        return;
+    }
+
+    const failed = [];
+    const files = all.filter(f => {
+        if (f.size > FACE_MAX_BYTES) {
+            failed.push({ file: f.name, reason: "File larger than 5 MB" });
+            return false;
+        }
+        return true;
+    });
+
+    let saved = 0;
+    btn.disabled = true;
+
+    for (let i = 0; i < files.length; i += FACE_CHUNK_SIZE) {
+        const chunk = files.slice(i, i + FACE_CHUNK_SIZE);
+        status.textContent = `Uploading ${Math.min(i + FACE_CHUNK_SIZE, files.length)} / ${files.length}...`;
+        try {
+            const data = await uploadFaceChunk(chunk);
+            saved += data.saved;
+            failed.push(...data.failed);
+        } catch (e) {
+            chunk.forEach(f => failed.push({ file: f.name, reason: e.message }));
+            if (!jwtToken) break;
+        }
+    }
+
+    btn.disabled = false;
+    status.textContent = "";
+    document.getElementById("face-files").value = "";
+
+    document.getElementById("face-failed-body").innerHTML = failed.map(f => `
+        <tr>
+            <td>${esc(f.file)}</td>
+            <td class="td-secondary">${esc(f.reason)}</td>
+        </tr>`).join("");
+    document.getElementById("face-failed-wrap").style.display = failed.length ? "block" : "none";
+
+    showAlert(
+        "face-upload-alert",
+        failed.length ? "info" : "success",
+        `${saved} saved, ${failed.length} failed.`
+    );
+}
 
 // ============================================================
 // UTILITIES
@@ -926,7 +1004,9 @@ function setupEventListeners() {
     document.getElementById("assign-student-btn").addEventListener("click", assignStudentToGroup);
 
     // --- Subjects page ---
+    document.getElementById("face-upload-btn").addEventListener("click", handleFacePhotoUpload);
     document.getElementById("subject-form").addEventListener("submit", handleCreateSubject);
+
 
     // --- Refresh buttons ---
     document.getElementById("refresh-overview-btn")?.addEventListener("click", loadOverviewStats);
