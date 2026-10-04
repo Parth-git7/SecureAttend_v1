@@ -1,37 +1,27 @@
-require("dotenv").config();
+require("dotenv").config();   // must stay first : config.js reads process.env when it's required
 
-const authRoutes = require("./routes/auth");
-const adminRoutes = require("./routes/admin");
-const academicRoutes = require("./routes/academic");
-const attendanceSessionRoutes = require("./routes/attendanceSessions");
-const bcrypt = require("bcrypt");
-const express = require("express");
+const http = require("http");
 const mongoose = require("mongoose");
+const app = require("./app");
 
-const app = express();
+const PORT = process.env.PORT || 3000;
 
-app.use(express.json({ limit: "2mb" }));
-app.use(express.static("public"));
-app.use("/api/auth", authRoutes);
-app.use("/api/admin", adminRoutes) ;
-app.use("/api/academic", academicRoutes) ;
-app.use("/api/attendance-sessions", attendanceSessionRoutes) ;
+const server = http.createServer(app);
 
-// mongo db connection here 
-mongoose.connect(process.env.MONGO_URI)
-    .then(() => {
+// Socket.IO will be attached to `server` here later
+
+async function start() {
+    try {
+        await mongoose.connect(process.env.MONGO_URI);
         console.log("MongoDB connected");
-    })
-    .catch((error) => {
-        console.log("MongoDB connection failed:", error);
-    });
 
-app.get("/", (req, res) => {
-    res.json({
-        message: "SecureAttend API is running"
-    });
-});
+        server.listen(PORT, "0.0.0.0", () => {
+            console.log(`SecureAttend server running on port ${PORT}`);
+        });
+    } catch (error) {
+        console.error("Startup failed:", error);
+        process.exit(1);
+    }
+}
 
-app.listen(3000, "0.0.0.0", () => {
-    console.log("SecureAttend server running on port 3000");
-});
+start();
