@@ -65,16 +65,20 @@ const attendanceSessionSchema = new mongoose.Schema(
             required: true
         },
 
-        status: {
+        phase: {
             type: String,
-            enum: ["ACTIVE", "ENDED"],
-            default: "ACTIVE"
-        }
-    },
-    { timestamps: true }
-);
+            enum: ["LOBBY", "ATTENDANCE_OPEN", "ATTENDANCE_CLOSED", "ENDED"],
+            default: "LOBBY"
+        },
 
-attendanceSessionSchema.index({ groupId: 1, status: 1, expiresAt: 1 });
+        attendanceStartedAt: { type: Date },
+        attendanceStoppedAt: { type: Date },
+        endedAt: { type: Date }
+            },
+            { timestamps: true }
+        );
+
+attendanceSessionSchema.index({ groupId: 1, phase: 1, expiresAt: 1 });
 
 module.exports = mongoose.model(
     "AttendanceSession",

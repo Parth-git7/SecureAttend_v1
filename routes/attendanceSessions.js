@@ -31,11 +31,13 @@ function parseLocation(loc) {
 
     return { latitude, longitude, accuracy };
 }
-// helper : active, non-expired session by id
-const findLiveSession = (sessionId) =>
+
+const LIVE_PHASES = ["LOBBY", "ATTENDANCE_OPEN", "ATTENDANCE_CLOSED"];
+// helper : session in one of the given phases and not past the safety cap
+const findSessionInPhase = (sessionId, phases) =>
     AttendanceSession.findOne({
         _id: sessionId,
-        status: "ACTIVE",
+        phase: { $in: phases },
         expiresAt: { $gt: new Date() }
     });
 
@@ -113,7 +115,7 @@ router.post("/", authMiddleware, roleMiddleware("TEACHER"),
                 subjectId,
                 teacherLocation : location,
                 roomCode,
-                status: "ACTIVE",
+                phase: "LOBBY",
                 expiresAt
             });
 
@@ -147,7 +149,7 @@ router.get("/active", authMiddleware, roleMiddleware("STUDENT"),
 
             const session = await AttendanceSession.findOne({
                 groupId: { $in: memberships.map((m) => m.groupId) },
-                status: "ACTIVE",
+                phase: { $in: LIVE_PHASES },
                 expiresAt: { $gt: new Date() }
             })
                 .sort({ createdAt: -1 })
@@ -166,6 +168,7 @@ router.get("/active", authMiddleware, roleMiddleware("STUDENT"),
             res.status(200).json({
                 activeSession: {
                     sessionId: session._id,
+                    phase: session.phase,
                     group: session.groupId,
                     subject: session.subjectId,
                     expiresAt: session.expiresAt,
@@ -182,46 +185,6 @@ router.get("/active", authMiddleware, roleMiddleware("STUDENT"),
     }
 );
 
-// End an attendance session (only by the teacher who started it)
-router.patch( "/:sessionId/end", authMiddleware, roleMiddleware("TEACHER"),
-    async (req, res) => {
-        try {
-            const { sessionId } = req.params;
-
-            if (!mongoose.isValidObjectId(sessionId)) {
-                return res.status(400).json({ message: "Invalid sessionId" });
-            }
-
-            const teacher = await Teacher.findOne({ userId: req.user.userId });
-            if (!teacher) {
-                return res.status(404).json({ message: "Teacher profile not found" });
-            }
-
-            // Atomic: only matches if the session is this teacher's and still ACTIVE
-            const session = await AttendanceSession.findOneAndUpdate(
-                { _id: sessionId, teacherId: teacher._id, status: "ACTIVE" },
-                { $set: { status: "ENDED" } },
-                { new: true }
-            );
-
-            if (!session) {
-                return res.status(404).json({
-                    message: "Active session not found for this teacher"
-                });
-            }
-
-            res.status(200).json({
-                message: "Attendance session ended",
-                session
-            });
-
-        } catch (error) {
-            console.error("End attendance session error:", error);
-            res.status(500).json({ message: "Server error", error: error.message });
-        }
-    }
-);
-
 // STUDENT JOINS
 router.post("/:sessionId/join", authMiddleware, roleMiddleware("STUDENT"), async (req, res) => {
     try {
@@ -233,8 +196,8 @@ router.post("/:sessionId/join", authMiddleware, roleMiddleware("STUDENT"), async
         const student = await Student.findOne({ userId: req.user.userId });
         if (!student) return res.status(404).json({ message: "Student profile not found" });
 
-        const session = await findLiveSession(sessionId);
-        if (!session) return res.status(404).json({ message: "Session is not active" });
+        const session = await findSessionInPhase(sessionId, ["LOBBY"]);
+        if (!session) return res.status(409).json({ message: "This session is not accepting new joins", code: "JOIN_CLOSED" });
 
         const member = await StudentGroup.findOne({ studentId: student._id, groupId: session.groupId });
         if (!member) return res.status(403).json({ message: "You are not in this group" });
@@ -283,9 +246,8 @@ router.post("/:sessionId/verify", authMiddleware, roleMiddleware("STUDENT"),
             const student = await Student.findOne({ userId: req.user.userId }).select("+faceEmbeddings");
             if (!student) return res.status(404).json({ message: "Student profile not found" });
 
-            const session = await findLiveSession(sessionId);
-            if (!session) return res.status(404).json({ message: "Session is not active" });
-
+            const session = await findSessionInPhase(sessionId, ["ATTENDANCE_OPEN"]);
+            if (!session) return res.status(409).json({ message: "Attendance is not open", code: "ATTENDANCE_NOT_OPEN" });
 
             const record = await AttendanceRecord.findOne({ sessionId, studentId: student._id });
             if (!record) return res.status(400).json({ message: "Join the session first" });
@@ -396,8 +358,8 @@ router.post("/:sessionId/review-request", authMiddleware, roleMiddleware("STUDEN
         const student = await Student.findOne({ userId: req.user.userId });
         if (!student) return res.status(404).json({ message: "Student profile not found" });
 
-        const session = await findLiveSession(sessionId);
-        if (!session) return res.status(404).json({ message: "Session is not active" });
+        const session = await findSessionInPhase(sessionId, ["ATTENDANCE_OPEN"]);
+        if (!session) return res.status(409).json({ message: "Attendance is not open", code: "ATTENDANCE_NOT_OPEN" });
 
         const record = await AttendanceRecord.findOne({ sessionId, studentId: student._id });
         if (!record) return res.status(400).json({ message: "Join the session first" });
@@ -465,7 +427,7 @@ router.get("/:sessionId/roster", authMiddleware, roleMiddleware("TEACHER"), asyn
             .sort((a, b) => a.rollNo.localeCompare(b.rollNo));
 
         res.status(200).json({
-            session: { id: session._id, status: session.status, expiresAt: session.expiresAt },
+            session: { id: session._id, phase: session.phase, expiresAt: session.expiresAt },
             students
         });
     } catch (error) {
@@ -496,7 +458,7 @@ router.patch("/:sessionId/students/:studentId/attendance", authMiddleware, roleM
         const session = await AttendanceSession.findOne({
             _id: sessionId,
             teacherId: teacher._id,
-            status: "ACTIVE"
+            phase: { $in: LIVE_PHASES }
         });
         if (!session) {
             return res.status(404).json({ message: "Active session not found for this teacher" });
@@ -531,5 +493,92 @@ router.patch("/:sessionId/students/:studentId/attendance", authMiddleware, roleM
         res.status(500).json({ message: "Server error", error: error.message });
     }
 });
+
+// End an attendance session (only by the teacher who started it)
+router.patch( "/:sessionId/end", authMiddleware, roleMiddleware("TEACHER"),
+    async (req, res) => {
+        try {
+            const { sessionId } = req.params;
+
+            if (!mongoose.isValidObjectId(sessionId)) {
+                return res.status(400).json({ message: "Invalid sessionId" });
+            }
+
+            const teacher = await Teacher.findOne({ userId: req.user.userId });
+            if (!teacher) {
+                return res.status(404).json({ message: "Teacher profile not found" });
+            }
+
+            // Atomic: only matches if the session is this teacher's and still ACTIVE
+            const session = await AttendanceSession.findOneAndUpdate(
+                { _id: sessionId, teacherId: teacher._id, phase: { $in: LIVE_PHASES } },
+                { $set: { phase: "ENDED", endedAt: new Date() } },
+                { new: true }
+            );
+
+            if (!session) {
+                return res.status(404).json({
+                    message: "Active session not found for this teacher"
+                });
+            }
+
+            res.status(200).json({
+                message: "Attendance session ended",
+                session
+            });
+
+        } catch (error) {
+            console.error("End attendance session error:", error);
+            res.status(500).json({ message: "Server error", error: error.message });
+        }
+    }
+);
+
+
+// factory for teacher-controlled phase changes - 
+// START ATTENDANCE / STOP ATTENDANCE
+function phaseTransition(from, to, stampField, message) {
+    return async (req, res) => {
+        try {
+            const { sessionId } = req.params;
+            if (!mongoose.isValidObjectId(sessionId)) {
+                return res.status(400).json({ message: "Invalid sessionId" });
+            }
+
+            const teacher = await Teacher.findOne({ userId: req.user.userId });
+            if (!teacher) {
+                return res.status(404).json({ message: "Teacher profile not found" });
+            }
+
+            // Atomic: only succeeds if it's this teacher's session AND it's in the expected phase
+            const session = await AttendanceSession.findOneAndUpdate(
+                { _id: sessionId, teacherId: teacher._id, phase: from },
+                { $set: { phase: to, [stampField]: new Date() } },
+                { new: true }
+            );
+
+            if (!session) {
+                return res.status(409).json({
+                    message: `Session must be in ${from} phase`,
+                    code: "INVALID_PHASE"
+                });
+            }
+
+            res.status(200).json({ message, session });
+
+        } catch (error) {
+            console.error("Phase transition error:", error);
+            res.status(500).json({ message: "Server error", error: error.message });
+        }
+    };
+}
+router.post("/:sessionId/start-attendance",
+    authMiddleware, roleMiddleware("TEACHER"),
+    phaseTransition("LOBBY", "ATTENDANCE_OPEN", "attendanceStartedAt", "Attendance started")
+);
+router.post("/:sessionId/stop-attendance",
+    authMiddleware, roleMiddleware("TEACHER"),
+    phaseTransition("ATTENDANCE_OPEN", "ATTENDANCE_CLOSED", "attendanceStoppedAt", "Attendance stopped")
+);
 
 module.exports = router;
