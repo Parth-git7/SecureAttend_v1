@@ -412,22 +412,6 @@ function displayActiveSession(session) {
             </span>
         </p>
         <p><strong>Expires At:</strong> ${new Date(session.expiresAt).toLocaleString()}</p>
-    `;
-}
-
-function displayActiveSession(session) {
-    const container = getOrCreateModule("active-session");
-
-    container.innerHTML = `
-        <h3>Active Attendance Session</h3>
-        <p><strong>Status:</strong> ${escapeHtml(session.status)}</p>
-        <p>
-            <strong>Room Code:</strong>
-            <span style="font-size: 24px; font-weight: bold;">
-                ${escapeHtml(session.roomCode)}
-            </span>
-        </p>
-        <p><strong>Expires At:</strong> ${new Date(session.expiresAt).toLocaleString()}</p>
         <button id="end-session-btn" class="btn-danger">End Session</button>
     `;
 

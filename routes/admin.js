@@ -22,6 +22,10 @@ const bulkUpload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 5 * 1024 * 1024, files: 100 }
 });
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024, files: 1 }
+});
 
 const router = express.Router();
 
@@ -710,6 +714,7 @@ router.post(
         }
     }
 );
+
 
 ////// get requests ///////
 
