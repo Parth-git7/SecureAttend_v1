@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SecureAttend Teacher</title>
+    <title>SecureAttend — Teacher Dashboard</title>
+    <meta name="description" content="SecureAttend teacher dashboard for managing live attendance sessions.">
     <link rel="stylesheet" href="css/teacher.css">
 </head>
 
@@ -14,11 +15,10 @@
     <!-- ================= LOGIN ================= -->
     <div id="login-section">
 
-        <h2>SecureAttend Teacher Login</h2>
+        <h2>SecureAttend — Teacher Portal</h2>
+        <p>Please sign in with your Chitkara Google account.</p>
 
         <div id="login-error" class="message error" style="display: none;"></div>
-
-        <p>Please sign in with your Chitkara Google account.</p>
 
         <div
             id="g_id_onload"
@@ -47,12 +47,12 @@
 
         <div class="header">
             <div>
-                <h2>SecureAttend Teacher Dashboard</h2>
+                <h2>SecureAttend — Teacher Dashboard</h2>
                 <p>
                     Logged in as:
                     <strong id="current-teacher-name"></strong>
                     (<span id="current-teacher-email"></span>)
-                    -
+                    &mdash;
                     <strong id="current-teacher-role"></strong>
                 </p>
             </div>
@@ -63,7 +63,7 @@
 
         <div class="dashboard-module">
 
-            <h3>Take Attendance</h3>
+            <h3>📋 Take Attendance</h3>
 
             <div id="attendance-message" class="message"></div>
 
@@ -104,7 +104,7 @@
                     </select>
                 </div>
 
-                <button type="submit">Start Attendance</button>
+                <button type="submit" id="create-session-btn">🚀 Create Session</button>
 
             </form>
 

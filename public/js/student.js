@@ -58,7 +58,9 @@ function getStudentLocation() {
 }
 
 async function captureFrames(count = 3, gapMs = 400) {
-    const video = document.getElementById("camera-preview");
+    const overlay = document.getElementById("camera-overlay");
+    const video   = document.getElementById("camera-preview");
+
     const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "user", width: { ideal: 640 } },
         audio: false
@@ -66,13 +68,14 @@ async function captureFrames(count = 3, gapMs = 400) {
 
     try {
         video.srcObject = stream;
-        video.style.display = "block";
+        // Show centred overlay
+        if (overlay) overlay.classList.add("visible");
         await video.play();
-        await new Promise((r) => setTimeout(r, 800));   // camera warm-up
+        await new Promise((r) => setTimeout(r, 800)); // camera warm-up
 
         const scale = Math.min(1, 640 / video.videoWidth);
         const canvas = document.createElement("canvas");
-        canvas.width = Math.round(video.videoWidth * scale);
+        canvas.width  = Math.round(video.videoWidth * scale);
         canvas.height = Math.round(video.videoHeight * scale);
         const ctx = canvas.getContext("2d");
 
@@ -86,7 +89,7 @@ async function captureFrames(count = 3, gapMs = 400) {
     } finally {
         stream.getTracks().forEach((t) => t.stop());
         video.srcObject = null;
-        video.style.display = "none";
+        if (overlay) overlay.classList.remove("visible");
     }
 }
 
@@ -369,7 +372,7 @@ async function loadActiveSession() {
 
 function displayActiveSession(session) {
     const key = session
-        ? `${session.sessionId}:${session.myStatus}:${session.myLocationResult}:${session.myFaceResult}`
+        ? `${session.sessionId}:${session.phase}:${session.myStatus}:${session.myLocationResult}:${session.myFaceResult}`
         : "none";
     if (key === lastKey) return;
     lastKey = key;
@@ -402,37 +405,78 @@ function displayActiveSession(session) {
     ].filter(Boolean);
     const failed = reasons.length > 0;
 
+    // Determine action area
     let action;
+
     if (session.myStatus === "PRESENT") {
-        action = `<p><strong>You are marked PRESENT.</strong></p>`;
+        action = `<p class="status-badge present">✅ You are marked PRESENT.</p>`;
+
     } else if (session.myStatus === "REVIEW") {
-        action = `<p><strong>Review requested. Waiting for your teacher's decision.</strong></p>`;
+        action = `<p class="status-badge review">🕐 Review requested — waiting for teacher's decision.</p>`;
+
     } else if (session.myStatus === "ABSENT") {
-        action = `<p><strong>You were marked ABSENT by the teacher.</strong></p>`;
-    } else if (session.myStatus === "JOINED") {
+        action = `<p class="status-badge absent">❌ You were marked ABSENT by the teacher.</p>`;
+
+    } else if (session.phase === "LOBBY") {
+        // Session exists but attendance not open yet
+        const joinedNote = session.myStatus === "JOINED"
+            ? `<p class="status-badge joined">✔ You have joined the lobby. Please wait.</p>`
+            : `<button id="join-session-btn">Join Lobby</button>`;
+        action = `
+            <div class="lobby-waiting">
+                <div class="lobby-spinner"></div>
+                <p>Attendance has not started yet. Your teacher will open it shortly.</p>
+                ${joinedNote}
+            </div>`;
+
+    } else if (session.phase === "ATTENDANCE_OPEN" && session.myStatus === "JOINED") {
         const failNote = failed
             ? `<div class="message error">${reasons.join(" ")} Retry, or request a review.</div>`
             : "";
         action = `
             ${failNote}
             <p>Enter the room code shown by your teacher:</p>
-            <input id="room-code-input" type="text" maxlength="5" autocomplete="off">
-            <video id="camera-preview" playsinline muted style="display:none; width:200px; margin:8px 0;"></video>
-            <button id="submit-code-btn">${failed ? "Retry" : "Submit Code"}</button>
+            <input id="room-code-input" type="text" maxlength="5" autocomplete="off"
+                   placeholder="e.g. AB3XY" style="text-transform:uppercase;">
+            <button id="submit-code-btn">${failed ? "🔄 Retry" : "Submit Code"}</button>
             <button id="review-btn" class="btn-danger">Request Review</button>`;
+
+    } else if (session.phase === "ATTENDANCE_CLOSED") {
+        action = `<p class="status-badge closed">🔒 Attendance period is closed. No further submissions accepted.</p>`;
+
     } else {
+        // Not yet joined, attendance open
         action = `<button id="join-session-btn">Join Attendance</button>`;
     }
 
+    const phaseLabelMap = {
+        LOBBY:             "Lobby",
+        ATTENDANCE_OPEN:   "Attendance Open",
+        ATTENDANCE_CLOSED: "Attendance Closed"
+    };
+    const phaseLabel = phaseLabelMap[session.phase] || session.phase;
+    const phaseClass = (session.phase || "").toLowerCase().replace("_", "-");
+
     container.innerHTML = `
         <div class="active-session">
-            <div class="session-status">ACTIVE</div>
+            <div class="session-phase-row">
+                <span class="session-status">ACTIVE</span>
+                <span class="phase-badge ${phaseClass}">${phaseLabel}</span>
+            </div>
             <h3>${session.subject.name}</h3>
             <p><strong>Subject Code:</strong> ${session.subject.code}</p>
             <p><strong>Group:</strong> ${session.group.name}</p>
             <p><strong>Session expires:</strong> ${new Date(session.expiresAt).toLocaleString()}</p>
             ${action}
-            <p id="session-message" class="coming-soon"></p>
+            <p id="session-message" class="session-msg"></p>
+        </div>
+
+        <!-- Centred camera overlay -->
+        <div id="camera-overlay" class="camera-overlay">
+            <div class="camera-modal">
+                <p class="camera-label">📸 Look at the camera…</p>
+                <video id="camera-preview" playsinline muted autoplay></video>
+            </div>
         </div>`;
 
     document.getElementById("join-session-btn")

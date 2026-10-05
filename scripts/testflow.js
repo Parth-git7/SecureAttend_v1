@@ -7,6 +7,7 @@ const Student = require("../models/Student");
 const StudentGroup = require("../models/StudentGroup");
 const GroupSubject = require("../models/GroupSubject");
 const User = require("../models/User");
+const AttendanceRecord = require("../models/AttendanceRecord");
 
 const BASE = process.env.TEST_BASE_URL || "http://localhost:3000";
 let passed = 0, failed = 0;
@@ -71,6 +72,12 @@ function check(name, res, expectedStatus, expectedCode) {
     check("roster shows phase", await call(T, "GET", `/${id}/roster`), 200);
     check("end session", await call(T, "PATCH", `/${id}/end`), 200);
     check("end twice", await call(T, "PATCH", `/${id}/end`), 404);
+    const members = await StudentGroup.countDocuments({ groupId });
+    const records = await AttendanceRecord.find({ sessionId: id });
+    const stillJoined = records.filter((r) => r.status === "JOINED").length;
+    const ok = records.length === members && stillJoined === 0;
+    ok ? passed++ : failed++;
+    console.log(`${ok ? "PASS" : "FAIL"}  records finalized  (records ${records.length}, group members ${members}, still JOINED ${stillJoined})`);
 
     console.log(`\n${passed} passed, ${failed} failed`);
     await mongoose.disconnect();

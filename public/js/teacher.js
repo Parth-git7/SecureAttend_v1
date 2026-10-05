@@ -32,7 +32,7 @@ function checkAuthState() {
 }
 
 function showLogin() {
-    document.getElementById("login-section").style.display = "block";
+    document.getElementById("login-section").style.display = "flex";
     document.getElementById("dashboard-section").style.display = "none";
 }
 
@@ -93,7 +93,6 @@ function getToken() {
 // HELPERS
 // ============================================================
 
-// GET helper: adds token, handles expired session, throws on error
 async function apiGet(path) {
     const response = await fetch(path, {
         method: "GET",
@@ -113,6 +112,44 @@ async function apiGet(path) {
     return data;
 }
 
+async function apiPost(path, body) {
+    const response = await fetch(path, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${getToken()}`
+        },
+        body: body ? JSON.stringify(body) : undefined
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+        throw new Error(data.message || "Request failed");
+    }
+
+    return data;
+}
+
+async function apiPatch(path, body) {
+    const response = await fetch(path, {
+        method: "PATCH",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${getToken()}`
+        },
+        body: body ? JSON.stringify(body) : undefined
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+        throw new Error(data.message || "Request failed");
+    }
+
+    return data;
+}
+
 function escapeHtml(str) {
     if (str == null) return "";
     return String(str)
@@ -123,7 +160,6 @@ function escapeHtml(str) {
         .replace(/'/g, "&#39;");
 }
 
-// Empty a dropdown back to its placeholder
 function resetSelect(id, placeholder, disabled = true) {
     const select = document.getElementById(id);
     select.innerHTML = "";
@@ -170,8 +206,9 @@ function getTeacherLocation() {
     });
 }
 
+
 // ============================================================
-// 1. ACADEMIC PERIOD (auto-selects the current one)
+// 1. ACADEMIC PERIOD
 // ============================================================
 
 async function loadAcademicPeriods() {
@@ -323,13 +360,13 @@ async function handleGroupChange() {
 
 
 // ============================================================
-// START ATTENDANCE (unchanged behaviour)
+// CREATE SESSION  (was "Start Attendance")
 // ============================================================
 
 async function handleStartAttendance(event) {
     event.preventDefault();
 
-    const groupId = document.getElementById("group-select").value;
+    const groupId   = document.getElementById("group-select").value;
     const subjectId = document.getElementById("subject-select").value;
 
     if (!groupId || !subjectId) {
@@ -337,53 +374,96 @@ async function handleStartAttendance(event) {
         return;
     }
 
+    const btn = document.getElementById("create-session-btn");
+    btn.disabled = true;
+    btn.textContent = "Creating…";
+
     try {
-        showMessage("Getting your location...", "info");
+        showMessage("Getting your location…", "info");
         const teacherLocation = await getTeacherLocation();
 
-        showMessage("Starting attendance session...", "info");
+        showMessage("Creating attendance session…", "info");
 
-        const response = await fetch("/api/attendance-sessions", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${getToken()}`
-            },
-            body: JSON.stringify({ groupId, subjectId, teacherLocation })
+        const data = await apiPost("/api/attendance-sessions", {
+            groupId,
+            subjectId,
+            teacherLocation
         });
 
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.message || "Failed to start attendance session");
-        }
-
-        showMessage("Attendance session started successfully.", "success");
+        showMessage("Session created! Students can now join the lobby.", "success");
 
         displayActiveSession(data.session);
-
         startRosterPolling(data.session._id);
 
     } catch (error) {
-        console.error("Start attendance error:", error);
+        console.error("Create session error:", error);
         showMessage(error.message, "error");
+        btn.disabled = false;
+        btn.textContent = "🚀 Create Session";
     }
 }
 
-async function loadGroupStudents(groupId) {
+
+// ============================================================
+// PHASE TRANSITIONS
+// ============================================================
+
+async function handleStartAttendancePhase(sessionId) {
+    const btn = document.getElementById("start-attendance-btn");
+    if (btn) { btn.disabled = true; btn.textContent = "Starting…"; }
+
     try {
-        const data = await apiGet(`/api/academic/groups/${groupId}/students`);
-        displayStudents(data.students);
+        const data = await apiPost(`/api/attendance-sessions/${sessionId}/start-attendance`);
+        showMessage("Attendance is now OPEN — students can submit their code.", "success");
+        displayActiveSession(data.session);
     } catch (error) {
-        console.error("Student loading error:", error);
+        showMessage(error.message, "error");
+        if (btn) { btn.disabled = false; btn.textContent = "▶ Start Attendance"; }
+    }
+}
+
+async function handleStopAttendancePhase(sessionId) {
+    const btn = document.getElementById("stop-attendance-btn");
+    if (btn) { btn.disabled = true; btn.textContent = "Stopping…"; }
+
+    try {
+        const data = await apiPost(`/api/attendance-sessions/${sessionId}/stop-attendance`);
+        showMessage("Attendance is now CLOSED — no more submissions accepted.", "info");
+        displayActiveSession(data.session);
+    } catch (error) {
+        showMessage(error.message, "error");
+        if (btn) { btn.disabled = false; btn.textContent = "⏹ Stop Attendance"; }
+    }
+}
+
+async function handleEndSession(sessionId) {
+    stopRosterPolling();
+    const btn = document.getElementById("end-session-btn");
+    if (btn) btn.disabled = true;
+
+    try {
+        await apiPatch(`/api/attendance-sessions/${sessionId}/end`);
+
+        showMessage("Attendance session ended and records finalised.", "success");
+
+        document.querySelectorAll("#group-students button").forEach((b) => (b.disabled = true));
+
+        const container = getOrCreateModule("active-session");
+        container.innerHTML = `
+            <h3>📋 Attendance Session</h3>
+            <p style="color: var(--text-secondary);">Session has ended. Records have been saved.</p>
+        `;
+
+    } catch (error) {
+        console.error("End session error:", error);
+        if (btn) btn.disabled = false;
         showMessage(error.message, "error");
     }
 }
 
 
 // ============================================================
-// DISPLAY
+// DISPLAY ACTIVE SESSION
 // ============================================================
 
 function getOrCreateModule(id) {
@@ -399,63 +479,96 @@ function getOrCreateModule(id) {
     return container;
 }
 
+function phaseBadgeHtml(phase) {
+    const map = {
+        LOBBY:              { cls: "lobby",  label: "Lobby — Waiting" },
+        ATTENDANCE_OPEN:    { cls: "open",   label: "Attendance Open" },
+        ATTENDANCE_CLOSED:  { cls: "closed", label: "Attendance Closed" },
+        ENDED:              { cls: "ended",  label: "Ended" }
+    };
+    const info = map[phase] || { cls: "ended", label: phase };
+    return `<span class="phase-badge ${info.cls}">${info.label}</span>`;
+}
+
+function sessionControlsHtml(sessionId, phase) {
+    if (phase === "LOBBY") {
+        return `
+            <div class="session-controls">
+                <button id="start-attendance-btn" class="btn-success">▶ Start Attendance</button>
+                <button id="end-session-btn" class="btn-danger">✕ End Session</button>
+            </div>
+            <p style="margin-top:10px; font-size:0.82rem; color:var(--text-muted);">
+                💡 Students can join the lobby but cannot submit their code until you start attendance.
+            </p>`;
+    }
+
+    if (phase === "ATTENDANCE_OPEN") {
+        return `
+            <div class="session-controls">
+                <button id="stop-attendance-btn" class="btn-warn">⏹ Stop Attendance</button>
+                <button id="end-session-btn" class="btn-danger">✕ End Session</button>
+            </div>
+            <p style="margin-top:10px; font-size:0.82rem; color:var(--text-muted);">
+                ✅ Attendance is open — students can now submit their room code and face scan.
+            </p>`;
+    }
+
+    if (phase === "ATTENDANCE_CLOSED") {
+        return `
+            <div class="session-controls">
+                <button id="end-session-btn" class="btn-danger">✕ End &amp; Finalise Session</button>
+            </div>
+            <p style="margin-top:10px; font-size:0.82rem; color:var(--text-muted);">
+                🔒 Attendance collection stopped. Review the roster and end when ready.
+            </p>`;
+    }
+
+    return "";
+}
+
 function displayActiveSession(session) {
     const container = getOrCreateModule("active-session");
 
+    const expiresLabel = new Date(session.expiresAt).toLocaleString();
+
     container.innerHTML = `
-        <h3>Active Attendance Session</h3>
-        <p><strong>Status:</strong> ${escapeHtml(session.status)}</p>
-        <p>
-            <strong>Room Code:</strong>
-            <span style="font-size: 24px; font-weight: bold;">
-                ${escapeHtml(session.roomCode)}
-            </span>
-        </p>
-        <p><strong>Expires At:</strong> ${new Date(session.expiresAt).toLocaleString()}</p>
-        <button id="end-session-btn" class="btn-danger">End Session</button>
+        <h3>🎯 Active Session ${phaseBadgeHtml(session.phase)}</h3>
+
+        <div class="session-info-grid">
+            <div class="session-info-item">
+                <div class="label">Room Code</div>
+                <div class="value room-code-display">${escapeHtml(session.roomCode)}</div>
+            </div>
+            <div class="session-info-item">
+                <div class="label">Phase</div>
+                <div class="value">${phaseBadgeHtml(session.phase)}</div>
+            </div>
+            <div class="session-info-item">
+                <div class="label">Expires At</div>
+                <div class="value">${expiresLabel}</div>
+            </div>
+        </div>
+
+        ${sessionControlsHtml(session._id, session.phase)}
     `;
 
-    document
-        .getElementById("end-session-btn")
-        .addEventListener("click", () => handleEndSession(session._id));
-}
+    // Bind phase transition buttons
+    document.getElementById("start-attendance-btn")
+        ?.addEventListener("click", () => handleStartAttendancePhase(session._id));
 
-async function handleEndSession(sessionId) {
-    stopRosterPolling();
-    const btn = document.getElementById("end-session-btn");
-    btn.disabled = true;
+    document.getElementById("stop-attendance-btn")
+        ?.addEventListener("click", () => handleStopAttendancePhase(session._id));
 
-    try {
-        const response = await fetch(`/api/attendance-sessions/${sessionId}/end`, {
-            method: "PATCH",
-            headers: { "Authorization": `Bearer ${getToken()}` }
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.message || "Failed to end session");
-        }
-
-        showMessage("Attendance session ended.", "success");
-        document.querySelectorAll("#group-students button").forEach((b) => (b.disabled = true));
-        
-        getOrCreateModule("active-session").innerHTML = `
-            <h3>Attendance Session</h3>
-            <p>Session ended.</p>
-        `;
-
-    } catch (error) {
-        console.error("End session error:", error);
-        btn.disabled = false;
-        showMessage(error.message, "error");
-    }
+    document.getElementById("end-session-btn")
+        ?.addEventListener("click", () => handleEndSession(session._id));
 }
 
 
-// =============================================================================================
+// ============================================================
+// ROSTER POLLING
+// ============================================================
 
-let rosterTimer = null;
+let rosterTimer     = null;
 let rosterSessionId = null;
 
 function startRosterPolling(sessionId) {
@@ -465,10 +578,10 @@ function startRosterPolling(sessionId) {
     const tick = async () => {
         try {
             const data = await apiGet(`/api/attendance-sessions/${sessionId}/roster`);
-            displayRoster(data.students, data.session.status === "ACTIVE");
+            displayRoster(data.students, data.session.phase);
 
             const expired = new Date(data.session.expiresAt) <= new Date();
-            if (data.session.status !== "ACTIVE" || expired) stopRosterPolling();
+            if (data.session.phase === "ENDED" || expired) stopRosterPolling();
         } catch (error) {
             console.error("Roster polling error:", error);
             stopRosterPolling();
@@ -479,15 +592,20 @@ function startRosterPolling(sessionId) {
     rosterTimer = setInterval(tick, 3000);
 }
 
-
-
 function stopRosterPolling() {
     if (rosterTimer) clearInterval(rosterTimer);
     rosterTimer = null;
 }
 
-function displayRoster(students, active = true) {
+
+// ============================================================
+// DISPLAY ROSTER
+// ============================================================
+
+function displayRoster(students, phase) {
     const container = getOrCreateModule("group-students");
+
+    const isActive = ["LOBBY", "ATTENDANCE_OPEN", "ATTENDANCE_CLOSED"].includes(phase);
 
     if (!container.dataset.bound) {
         container.dataset.bound = "1";
@@ -498,47 +616,85 @@ function displayRoster(students, active = true) {
     }
 
     if (!students.length) {
-        container.innerHTML = `<h3>Group Students</h3><p>No students found in this group.</p>`;
+        container.innerHTML = `<h3>👥 Group Students</h3><p style="color:var(--text-secondary);">No students found in this group.</p>`;
         return;
     }
 
     const present = students.filter((s) => s.status === "PRESENT").length;
+    const joined  = students.filter((s) => s.status === "JOINED").length;
+    const review  = students.filter((s) => s.status === "REVIEW").length;
+    const absent  = students.filter((s) => s.status === "ABSENT").length;
 
-    const rows = students.map((s, i) => `
-        <tr class="${s.status === "REVIEW" ? "review-row" : ""}">
-            <td style="padding:8px;">${i + 1}</td>
-            <td style="padding:8px;">${escapeHtml(s.rollNo)}</td>
-            <td style="padding:8px;">${escapeHtml(s.name)}</td>
-            <td style="padding:8px;">${escapeHtml(s.status)}</td>
-            <td style="padding:8px;">
-                <button data-student="${s.studentId}" data-status="PRESENT"
-                    ${!active || s.status === "PRESENT" ? "disabled" : ""}>Approve</button>
-                <button class="btn-danger" data-student="${s.studentId}" data-status="ABSENT"
-                    ${!active || s.status === "ABSENT" ? "disabled" : ""}>Reject</button>
-            </td>
-        </tr>
-    `).join("");
+    const phaseNote = phase === "LOBBY"
+        ? `<p style="font-size:0.82rem; color:var(--warn); margin-bottom:14px;">⚠️ Attendance not started yet — students in lobby, but cannot submit code.</p>`
+        : "";
+
+    const rows = students.map((s, i) => {
+        const rowCls =
+            s.status === "REVIEW"   ? "row-review"  :
+            s.status === "PRESENT"  ? "row-present"  :
+            s.status === "ABSENT"   ? "row-absent"   : "";
+
+        const statusCls = s.status.toLowerCase();
+        const pillLabel =
+            s.status === "JOINED"  ? "Joined"   :
+            s.status === "PRESENT" ? "Present"  :
+            s.status === "ABSENT"  ? "Absent"   :
+            s.status === "REVIEW"  ? "Review"   : s.status;
+
+        const canApprove = isActive && s.status !== "PRESENT";
+        const canReject  = isActive && s.status !== "ABSENT";
+
+        return `
+            <tr class="${rowCls}">
+                <td>${i + 1}</td>
+                <td>${escapeHtml(s.rollNo)}</td>
+                <td>${escapeHtml(s.name)}</td>
+                <td><span class="status-pill ${statusCls}">${pillLabel}</span></td>
+                <td>
+                    <div class="action-btns">
+                        <button data-student="${s.studentId}" data-status="PRESENT"
+                            class="btn-success"
+                            ${!canApprove ? "disabled" : ""}>✓ Approve</button>
+                        <button data-student="${s.studentId}" data-status="ABSENT"
+                            class="btn-danger"
+                            ${!canReject ? "disabled" : ""}>✕ Reject</button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join("");
 
     container.innerHTML = `
-        <h3>Group Students (${present}/${students.length} present)</h3>
-        <table style="width: 100%; border-collapse: collapse;">
-            <thead>
-                <tr>
-                    <th style="text-align:left; padding:8px;">#</th>
-                    <th style="text-align:left; padding:8px;">Roll No.</th>
-                    <th style="text-align:left; padding:8px;">Name</th>
-                    <th style="text-align:left; padding:8px;">Status</th>
-                    <th style="text-align:left; padding:8px;">Action</th>
-                </tr>
-            </thead>
-            <tbody>${rows}</tbody>
-        </table>
+        <h3>👥 Group Students</h3>
+        ${phaseNote}
+        <div class="stats-bar">
+            <div class="stat-chip"><span class="num">${present}</span> Present</div>
+            <div class="stat-chip"><span class="num">${joined}</span> Joined</div>
+            <div class="stat-chip"><span class="num">${review}</span> Review</div>
+            <div class="stat-chip"><span class="num">${absent}</span> Absent</div>
+            <div class="stat-chip"><span class="num">${students.length}</span> Total</div>
+        </div>
+        <div class="roster-table-wrap">
+            <table class="roster-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Roll No.</th>
+                        <th>Name</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>
     `;
 }
 
 async function markStudent(studentId, status) {
     try {
-        const response = await fetch(
+        await fetch(
             `/api/attendance-sessions/${rosterSessionId}/students/${studentId}/attendance`,
             {
                 method: "PATCH",
@@ -548,16 +704,19 @@ async function markStudent(studentId, status) {
                 },
                 body: JSON.stringify({ status })
             }
-        );
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.message || "Failed to update attendance");
+        ).then(async (res) => {
+            const d = await res.json();
+            if (!res.ok) throw new Error(d.message || "Failed to update attendance");
+        });
 
         const roster = await apiGet(`/api/attendance-sessions/${rosterSessionId}/roster`);
-        displayRoster(roster.students, roster.session.status === "ACTIVE");
+        displayRoster(roster.students, roster.session.phase);
+
     } catch (error) {
         showMessage(error.message, "error");
     }
 }
+
 
 // ============================================================
 // EVENT LISTENERS

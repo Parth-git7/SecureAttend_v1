@@ -522,6 +522,35 @@ router.patch( "/:sessionId/end", authMiddleware, roleMiddleware("TEACHER"),
                 });
             }
 
+            // Finalize records: everyone in the group gets a permanent record
+            const now = new Date();
+
+            const memberships = await StudentGroup.find({ groupId: session.groupId }).select("studentId");
+            const existing = await AttendanceRecord.find({ sessionId }).select("studentId");
+            const hasRecord = new Set(existing.map((r) => String(r.studentId)));
+
+            const missing = memberships
+                .filter((m) => !hasRecord.has(String(m.studentId)))
+                .map((m) => ({
+                    sessionId,
+                    studentId: m.studentId,
+                    status: "ABSENT",
+                    decision: { by: "SYSTEM", at: now }
+                }));
+
+            if (missing.length) {
+                // ordered:false so one duplicate (race with a late join) doesn't abort the rest
+                await AttendanceRecord.insertMany(missing, { ordered: false }).catch((err) => {
+                    if (err.code !== 11000 && !err.writeErrors) throw err;
+                });
+            }
+
+            // Students who joined but never got verified are also absent
+            await AttendanceRecord.updateMany(
+                { sessionId, status: "JOINED" },
+                { $set: { status: "ABSENT", "decision.by": "SYSTEM", "decision.at": now } }
+            );
+
             res.status(200).json({
                 message: "Attendance session ended",
                 session
