@@ -14,7 +14,7 @@ const { SESSION_DURATION_MIN } = require("../config");
 const { distanceMeters } = require("../utils/geo");
 const { checkLocation, LOCATION_ERRORS } = require("../utils/location");
 const { compareFaces } = require("../utils/face");
-
+const { sessionChanged, rosterChanged } = require("../realtime");
 
 const router = express.Router();
 
@@ -118,6 +118,7 @@ router.post("/", authMiddleware, roleMiddleware("TEACHER"),
                 phase: "LOBBY",
                 expiresAt
             });
+            sessionChanged(session);
 
             res.status(201).json({
                 message: "Attendance session created",
@@ -209,6 +210,7 @@ router.post("/:sessionId/join", authMiddleware, roleMiddleware("STUDENT"), async
             if (err.code !== 11000) throw err;
             record = await AttendanceRecord.findOne({ sessionId, studentId: student._id }); // already joined
         }
+        rosterChanged(sessionId);
 
         res.status(200).json({ message: "Joined", status: record.status });
     } catch (error) {
@@ -217,7 +219,7 @@ router.post("/:sessionId/join", authMiddleware, roleMiddleware("STUDENT"), async
     }
 });
 
-// STUDENT SUBMITS CODE (NEW WITH LOCATION CHECK)
+// STUDENT SUBMITS CODE ( WITH LOCATION CHECK)
 router.post("/:sessionId/verify", authMiddleware, roleMiddleware("STUDENT"), 
     async(req, res) => {
         try {
@@ -308,6 +310,7 @@ router.post("/:sessionId/verify", authMiddleware, roleMiddleware("STUDENT"),
                     status: current ? current.status : null
                 });
             }
+            rosterChanged(sessionId);
 
             if (passed) {
                 return res.status(200).json({
@@ -377,6 +380,7 @@ router.post("/:sessionId/review-request", authMiddleware, roleMiddleware("STUDEN
                 status: current ? current.status : null
             });
         }
+        rosterChanged(sessionId);
 
         res.status(200).json({ message: "Review requested", status: "REVIEW" });
 
@@ -386,7 +390,7 @@ router.post("/:sessionId/review-request", authMiddleware, roleMiddleware("STUDEN
         }
     });
 
-// TEACHER ROSTER (polled)
+// TEACHER ROSTER 
 router.get("/:sessionId/roster", authMiddleware, roleMiddleware("TEACHER"), async (req, res) => {
     try {
         const { sessionId } = req.params;
@@ -481,6 +485,7 @@ router.patch("/:sessionId/students/:studentId/attendance", authMiddleware, roleM
             update,
             { upsert: true, new: true, setDefaultsOnInsert: false }
         );
+        sessionChanged(session);
 
         res.status(200).json({
             message: `Student marked ${status}`,
@@ -550,7 +555,8 @@ router.patch( "/:sessionId/end", authMiddleware, roleMiddleware("TEACHER"),
                 { sessionId, status: "JOINED" },
                 { $set: { status: "ABSENT", "decision.by": "SYSTEM", "decision.at": now } }
             );
-
+            sessionChanged(session);
+            
             res.status(200).json({
                 message: "Attendance session ended",
                 session
@@ -593,6 +599,7 @@ function phaseTransition(from, to, stampField, message) {
                 });
             }
 
+            sessionChanged(session);
             res.status(200).json({ message, session });
 
         } catch (error) {

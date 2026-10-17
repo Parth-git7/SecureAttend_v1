@@ -1,15 +1,19 @@
-require("dotenv").config();   // must stay first : config.js reads process.env when it's required
+require("dotenv").config(); // Must stay first
 
 const http = require("http");
 const mongoose = require("mongoose");
 const app = require("./app");
+const { initRealtime } = require("./realtime");
 
 const PORT = process.env.PORT || 3000;
 
+// 1. Create the HTTP server
 const server = http.createServer(app);
 
-// Socket.IO will be attached to `server` here later
+// 2. Attach Socket.IO to the HTTP server
+initRealtime(server);
 
+// 3. Connect to MongoDB and start the server
 async function start() {
     try {
         await mongoose.connect(process.env.MONGO_URI);
