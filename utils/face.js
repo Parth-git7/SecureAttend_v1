@@ -1,7 +1,7 @@
 const { FACE_THRESHOLD, FACE_SERVICE_URL } = require("../config");
 
 const MIN_DET_SCORE = 0.5;
-const MIN_VALID_FRAMES = 2;
+const MIN_VALID_FRAMES = 1;
 
 async function embedFrames(buffers) {
     const form = new FormData();

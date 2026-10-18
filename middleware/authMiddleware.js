@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
 
 const authMiddleware = (req, res, next) => {
+    console.log("[auth-debug]", req.originalUrl, "| header:", JSON.stringify((req.headers.authorization || "").slice(0, 25)));
     try {
         const authHeader = req.headers.authorization;
 
@@ -28,10 +29,12 @@ const authMiddleware = (req, res, next) => {
         next();
 
     } catch (error) {
-        return res.status(401).json({
-            message: "Invalid or expired token"
-        });
-    }
+    console.error("[auth]", req.method, req.originalUrl, "|", error.name, "-", error.message);
+    return res.status(401).json({
+        message: "Invalid or expired token",
+        reason: error.name
+    });
+}
 };
 
 module.exports = authMiddleware;
