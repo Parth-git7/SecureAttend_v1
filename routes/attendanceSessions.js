@@ -290,15 +290,6 @@ router.post("/:sessionId/verify", authMiddleware, roleMiddleware("STUDENT"),
                 "faceCheck.framesUsed": face.framesUsed
             };
             if (location) set.studentLocation = location;
-            if (passed) {
-                return res.status(200).json({
-                    message: "Face and location verified. Complete the liveness check.",
-                    status: "JOINED",
-                    awaitingLiveness: true,
-                    locationResult: result,
-                    faceResult: face.result
-                });
-            }
 
             // Atomic: only applies while still JOINED, so it can't overwrite a teacher decision
             const update = await AttendanceRecord.updateOne(
@@ -317,8 +308,9 @@ router.post("/:sessionId/verify", authMiddleware, roleMiddleware("STUDENT"),
 
             if (passed) {
                 return res.status(200).json({
-                    message: "Marked present",
-                    status: "PRESENT",
+                    message: "Face and location verified. Complete the liveness check.",
+                    status: "JOINED",
+                    awaitingLiveness: true,
                     locationResult: result,
                     faceResult: face.result
                 });
