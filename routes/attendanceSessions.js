@@ -1,6 +1,6 @@
 const express = require("express");
 const mongoose = require("mongoose");
-
+const ExcelJS = require("exceljs");
 const AttendanceSession = require("../models/AttendanceSession");
 const Teacher = require("../models/Teacher");
 const Student = require("../models/Student");
@@ -615,6 +615,72 @@ router.patch( "/:sessionId/end", authMiddleware, roleMiddleware("TEACHER"),
     }
 );
 
+// TEACHER EXPORT (xlsx, sorted by roll no)
+router.get("/:sessionId/export", authMiddleware, roleMiddleware("TEACHER"), async (req, res) => {
+    try {
+        const { sessionId } = req.params;
+        if (!mongoose.isValidObjectId(sessionId)) {
+            return res.status(400).json({ message: "Invalid sessionId" });
+        }
+
+        const teacher = await Teacher.findOne({ userId: req.user.userId });
+        if (!teacher) return res.status(404).json({ message: "Teacher profile not found" });
+
+        const session = await AttendanceSession.findOne({ _id: sessionId, teacherId: teacher._id })
+            .populate("groupId", "name")
+            .populate("branchId", "code")
+            .populate("subjectId", "name code");
+        if (!session) return res.status(404).json({ message: "Session not found" });
+
+        const memberships = await StudentGroup.find({ groupId: session.groupId._id }).populate({
+            path: "studentId",
+            populate: { path: "userId", select: "name" }
+        });
+        const records = await AttendanceRecord.find({ sessionId });
+        const recordByStudent = new Map(records.map((r) => [String(r.studentId), r]));
+
+        const rows = memberships
+            .filter((m) => m.studentId && m.studentId.userId)
+            .map((m) => ({
+                rollNo: String(m.studentId.rollNo),
+                name: m.studentId.userId.name,
+                status: recordByStudent.get(String(m.studentId._id))?.status || "ABSENT"
+            }))
+            .sort((a, b) => a.rollNo.localeCompare(b.rollNo, undefined, { numeric: true }));
+
+        const LABEL = { PRESENT: "Present", ABSENT: "Absent", JOINED: "Joined", REVIEW: "Review" };
+
+        const wb = new ExcelJS.Workbook();
+        const ws = wb.addWorksheet("Attendance");
+        ws.columns = [
+            { header: "Sr No", key: "sr", width: 8 },
+            { header: "Roll No", key: "rollNo", width: 18 },
+            { header: "Name", key: "name", width: 32 },
+            { header: "Status", key: "status", width: 12 }
+        ];
+        ws.getRow(1).font = { bold: true };
+        rows.forEach((r, i) =>
+            ws.addRow({ sr: i + 1, rollNo: r.rollNo, name: r.name, status: LABEL[r.status] || r.status })
+        );
+        ws.getColumn("rollNo").numFmt = "@"; // keep as text
+
+        const safe = (s) => String(s).replace(/[^\w.-]+/g, "_");
+        const date = session.createdAt.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }); // YYYY-MM-DD
+        const filename = [
+            safe(session.subjectId.code),
+            safe(session.branchId.code),
+            safe(session.groupId.name),
+            date
+        ].join("_") + ".xlsx";
+
+        res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+        res.send(Buffer.from(await wb.xlsx.writeBuffer()));
+    } catch (error) {
+        console.error("Export error:", error);
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+});
 
 // factory for teacher-controlled phase changes - 
 // START ATTENDANCE / STOP ATTENDANCE

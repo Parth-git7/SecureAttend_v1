@@ -22,6 +22,7 @@ app.use(
             }
             callback(null, false);
         },
+        exposedHeaders: ["Content-Disposition"],
         allowedHeaders: ["Content-Type", "Authorization"],
         methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
     })
