@@ -219,7 +219,7 @@ router.post("/:sessionId/join", authMiddleware, roleMiddleware("STUDENT"), async
     }
 });
 
-// STUDENT SUBMITS CODE ( WITH LOCATION CHECK)
+// STUDENT SUBMITS CODE ( WITH LOCATION, FACE AND LIVENESS CHECK)
 router.post("/:sessionId/verify", authMiddleware, roleMiddleware("STUDENT"), 
     async(req, res) => {
         try {
@@ -291,10 +291,13 @@ router.post("/:sessionId/verify", authMiddleware, roleMiddleware("STUDENT"),
             };
             if (location) set.studentLocation = location;
             if (passed) {
-                set.status = "PRESENT";
-                set.markedAt = new Date();
-                set["decision.by"] = "SYSTEM";
-                set["decision.at"] = new Date();
+                return res.status(200).json({
+                    message: "Face and location verified. Complete the liveness check.",
+                    status: "JOINED",
+                    awaitingLiveness: true,
+                    locationResult: result,
+                    faceResult: face.result
+                });
             }
 
             // Atomic: only applies while still JOINED, so it can't overwrite a teacher decision
@@ -389,6 +392,57 @@ router.post("/:sessionId/review-request", authMiddleware, roleMiddleware("STUDEN
             res.status(500).json({ message: "Server error", error: error.message });
         }
     });
+
+// STUDENT FINISHES LIVENESS -> promotes a verified record to PRESENT
+router.post("/:sessionId/liveness-complete", authMiddleware, roleMiddleware("STUDENT"), async (req, res) => {
+    try {
+        const { sessionId } = req.params;
+        if (!mongoose.isValidObjectId(sessionId)) {
+            return res.status(400).json({ message: "Invalid sessionId" });
+        }
+
+        const student = await Student.findOne({ userId: req.user.userId });
+        if (!student) return res.status(404).json({ message: "Student profile not found" });
+
+        const session = await findSessionInPhase(sessionId, ["ATTENDANCE_OPEN"]);
+        if (!session) return res.status(409).json({ message: "Attendance is not open", code: "ATTENDANCE_NOT_OPEN" });
+
+        const now = new Date();
+        const update = await AttendanceRecord.updateOne(
+            {
+                sessionId,
+                studentId: student._id,
+                status: "JOINED",
+                "locationCheck.result": "PASS",
+                "faceCheck.result": "PASS",
+                updatedAt: { $gt: new Date(now.getTime() - 2 * 60 * 1000) } // check must be recent
+            },
+            {
+                $set: {
+                    status: "PRESENT",
+                    markedAt: now,
+                    "decision.by": "SYSTEM",
+                    "decision.at": now,
+                    "livenessCheck.result": "PASS",
+                    "livenessCheck.at": now
+                }
+            }
+        );
+
+        if (update.matchedCount === 0) {
+            return res.status(409).json({
+                message: "No recent verified face check found. Please try again.",
+                code: "VERIFY_REQUIRED"
+            });
+        }
+
+        rosterChanged(sessionId);
+        res.status(200).json({ message: "Marked present", status: "PRESENT" });
+    } catch (error) {
+        console.error("Liveness complete error:", error);
+        res.status(500).json({ message: "Server error", error: error.message });
+    }
+});
 
 // TEACHER ROSTER 
 router.get("/:sessionId/roster", authMiddleware, roleMiddleware("TEACHER"), async (req, res) => {

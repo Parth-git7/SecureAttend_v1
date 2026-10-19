@@ -46,6 +46,10 @@ const attendanceRecordSchema = new mongoose.Schema(
             score: { type: Number },
             framesUsed: { type: Number, min: 0 }
         },
+        livenessCheck: {
+            result: { type: String, enum: ["PASS"] },
+            at: { type: Date }
+        },
 
         status : {
             type : String,
