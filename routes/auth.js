@@ -3,6 +3,7 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const { OAuth2Client } = require("google-auth-library");
 const User = require("../models/User");
+const Student = require("../models/Student");
 
 const router = express.Router();
 const googleClient = new OAuth2Client( process.env.GOOGLE_CLIENT_ID );
@@ -62,6 +63,12 @@ router.post("/login", async (req, res) => {
         );
 
         // Login successful
+        let rollNo = undefined;
+        if (user.role === "STUDENT") {
+            const student = await Student.findOne({ userId: user._id });
+            if (student) rollNo = student.rollNo;
+        }
+
         res.json({
             message: "Login successful",
             token,
@@ -69,7 +76,8 @@ router.post("/login", async (req, res) => {
                 id: user._id,
                 name: user.name,
                 email: user.email,
-                role: user.role
+                role: user.role,
+                ...(rollNo ? { rollNo } : {})
             }
         });
 
@@ -145,6 +153,12 @@ router.post("/google", async (req, res) => {
             }
         );
 
+        let googleRollNo = undefined;
+        if (user.role === "STUDENT") {
+            const student = await Student.findOne({ userId: user._id });
+            if (student) googleRollNo = student.rollNo;
+        }
+
         res.json({
             message: "Google login successful",
             token,
@@ -152,7 +166,8 @@ router.post("/google", async (req, res) => {
                 id: user._id,
                 name: user.name,
                 email: user.email,
-                role: user.role
+                role: user.role,
+                ...(googleRollNo ? { rollNo: googleRollNo } : {})
             }
         });
 
